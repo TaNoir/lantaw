@@ -1,0 +1,341 @@
+{
+  "today": "2026-11-13",
+  "settings": {
+    "balance": "12480",
+    "balanceAsOf": "2026-11-13",
+    "safetyBuffer": "3000",
+    "horizonMonths": 12,
+    "cardFxFeePct": "0",
+    "paidOnAsOf": []
+  },
+  "items": [
+    {
+      "id": "sweldo",
+      "name": "Sweldo",
+      "kind": {
+        "type": "income",
+        "mainSweldo": true
+      },
+      "amount": "18000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "kinsenas",
+          "second": "thirtieth"
+        }
+      },
+      "businessDay": "previous",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "13th-month",
+      "name": "13th month",
+      "kind": {
+        "type": "income",
+        "mainSweldo": false
+      },
+      "amount": "18000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-12-01",
+        "end": null,
+        "every": {
+          "type": "yearly",
+          "month": 12,
+          "day": 15
+        }
+      },
+      "businessDay": "previous",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "rent",
+      "name": "Rent",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "7000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 1
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "pamalengke",
+      "name": "Pamalengke",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "4500",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "kinsenas",
+          "second": "thirtieth"
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "davao-light",
+      "name": "Davao Light",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "1850",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 15
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": "GCash"
+    },
+    {
+      "id": "dcwd",
+      "name": "DCWD",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "420",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 20
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "converge",
+      "name": "Converge",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "1500",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 5
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "globe-postpaid",
+      "name": "Globe postpaid",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "999",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 13
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": "GCash"
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "549",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 8
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "20",
+      "currency": "USD",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 22
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "home-credit-phone",
+      "name": "Home Credit phone",
+      "kind": {
+        "type": "installment",
+        "totalPayments": 12,
+        "paidOverride": null
+      },
+      "amount": "2083",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-09-15",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 15
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "spaylater",
+      "name": "SPayLater",
+      "kind": {
+        "type": "installment",
+        "totalPayments": 6,
+        "paidOverride": null
+      },
+      "amount": "1250",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-10-13",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 13
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "paluwagan",
+      "name": "Paluwagan",
+      "kind": {
+        "type": "paluwagan",
+        "members": 10,
+        "myTurn": 10
+      },
+      "amount": "2000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-08-15",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 15
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "pasko-gifts",
+      "name": "Pasko gifts",
+      "kind": {
+        "type": "oneOff",
+        "direction": "out"
+      },
+      "amount": "15000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-12-20",
+        "end": null,
+        "every": {
+          "type": "once"
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "bpi-0-laptop",
+      "name": "BPI 0% laptop",
+      "kind": {
+        "type": "installment",
+        "totalPayments": 12,
+        "paidOverride": null
+      },
+      "amount": "3249",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2027-01-03",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 3
+        }
+      },
+      "businessDay": "none",
+      "included": false,
+      "paidFrom": null
+    }
+  ],
+  "holidays": [
+    "2026-11-30",
+    "2026-12-08",
+    "2026-12-24",
+    "2026-12-25",
+    "2026-12-30",
+    "2026-12-31",
+    "2027-01-01",
+    "2027-03-16"
+  ],
+  "fx": [
+    {
+      "currency": "USD",
+      "phpPerUnit": "63.727",
+      "asOf": "2026-11-12"
+    }
+  ]
+}
