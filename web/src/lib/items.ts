@@ -13,7 +13,7 @@ import type {
   Schedule,
 } from './engine-types';
 import { parseAmount } from './money';
-import { formatDate, weekday } from './dates';
+import { addDays, formatDate, weekday } from './dates';
 import { ordinal } from './cutoff';
 
 export type KindType = ItemKind['type'];
@@ -257,9 +257,27 @@ export function setMainSweldo(items: StoredItem[], id: string): StoredItem[] {
 }
 
 /**
+ * The incomes to rewrite so exactly one is the main sweldo: with none flagged,
+ * the earliest income (by `createdAt`) is promoted; with several, all but the
+ * earliest flagged one lose the flag. Empty when nothing needs to change or
+ * there is no income at all. Used after a save and after a delete.
+ */
+export function ensureMainSweldo(items: StoredItem[]): StoredItem[] {
+  const incomes = items
+    .filter((i) => i.kind.type === 'income')
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  if (incomes.length === 0) return [];
+  const keep = incomes.find(isMain) ?? incomes[0];
+  const next = setMainSweldo(incomes, keep.id);
+  return next.filter((i, n) => i !== incomes[n]);
+}
+
+/**
  * Everything to write when `saved` is saved: the item itself, plus any income
- * that loses the main-sweldo flag. An income saved while no other income is
- * the main sweldo becomes it, so there is always exactly one when any exist.
+ * whose main-sweldo flag has to change. An income saved while no other income
+ * is the main sweldo becomes it; if the main sweldo stops being an income,
+ * the earliest remaining income takes over. So whenever incomes exist,
+ * exactly one is the main sweldo.
  */
 export function itemsToSave(items: StoredItem[], saved: StoredItem): StoredItem[] {
   let item = saved;
@@ -269,7 +287,12 @@ export function itemsToSave(items: StoredItem[], saved: StoredItem): StoredItem[
   }
   const list = [...others, item];
   const next = isMain(item) ? setMainSweldo(list, item.id) : list;
-  return next.filter((i, n) => i !== list[n] || i === item);
+  const writes = next.filter((i, n) => i !== list[n] || i === item);
+  // Repair whatever is still off (e.g. the main sweldo was changed into a bill).
+  const fixes = new Map(ensureMainSweldo(next).map((i) => [i.id, i]));
+  const merged = writes.map((i) => fixes.get(i.id) ?? i);
+  for (const f of fixes.values()) if (!writes.some((w) => w.id === f.id)) merged.push(f);
+  return merged;
 }
 
 /** "Davao Light" -> "davao-light"; "-2", "-3"... when taken. */
@@ -600,10 +623,18 @@ export function itemProgress(p: Projection | null, item: StoredItem): string | n
 
   if (k.type === 'installment') {
     if (evs.length === 0) {
-      if (p && item.schedule.start > p.start && k.paidOverride === null) {
-        return `${k.totalPayments} payments · starts ${formatMonthLong(item.schedule.start)}`;
+      const neutral = `${k.totalPayments} payments`;
+      // Without a forecast, or for a what-if, there is nothing to judge by.
+      if (!p || !item.included) return neutral;
+      const windowEnd = addDays(p.start, Math.max(0, p.days.length - 1));
+      const firstDue = firstDate(item.schedule);
+      if (firstDue && firstDue > windowEnd) return `${neutral} · starts ${formatMonthLong(firstDue)}`;
+      if (k.paidOverride !== null && k.paidOverride >= k.totalPayments) {
+        return `${k.totalPayments} of ${k.totalPayments} · paid off`;
       }
-      return `${k.totalPayments} of ${k.totalPayments} · paid off`;
+      const last = k.paidOverride === null ? lastPaymentDate(item.schedule, k.totalPayments) : null;
+      if (last && last < p.start) return `${k.totalPayments} of ${k.totalPayments} · paid off`;
+      return neutral;
     }
     const num = (note: string | null) => Number(/(\d+) of \d+/.exec(note ?? '')?.[1] ?? NaN);
     const first = evs[0];
@@ -699,4 +730,50 @@ export function firstDate(s: Schedule): string | null {
       return d >= s.start ? d : at(y + 1, e.month, e.day);
     }
   }
+}
+
+/**
+ * Nominal date of payment `n` (1-based) of a schedule, capped by its end date;
+ * null when the schedule has fewer than `n` dates. Mirrors the engine's
+ * anchored rules (monthly from the anchor, kinsenas twice a month, ...).
+ */
+export function lastPaymentDate(s: Schedule, n: number): string | null {
+  const first = firstDate(s);
+  if (!first || !isInt(n) || n < 1) return null;
+  const e = s.every;
+  let d: string | null;
+  switch (e.type) {
+    case 'once':
+      d = n === 1 ? first : null;
+      break;
+    case 'weekly':
+      d = addDays(first, 7 * (n - 1));
+      break;
+    case 'everyTwoWeeks':
+      d = addDays(first, 14 * (n - 1));
+      break;
+    case 'monthly':
+      d = withDay(shiftMonths(first, n - 1), e.day);
+      break;
+    case 'yearly':
+      d = withDay(shiftMonths(first, 12 * (n - 1)), e.day);
+      break;
+    case 'kinsenas': {
+      // Dates go 15th, second, 15th, second... starting from whichever comes first.
+      const startsMid = Number(first.slice(8, 10)) === 15;
+      const steps = n - 1 + (startsMid ? 0 : 1); // count from the 15th of first's month
+      const month = shiftMonths(`${first.slice(0, 8)}01`, Math.floor(steps / 2));
+      d = steps % 2 === 0 ? withDay(month, 15) : withDay(month, e.second === 'thirtieth' ? 30 : 31);
+      break;
+    }
+  }
+  if (d && s.end && d > s.end) return null;
+  return d;
+}
+
+/** `iso`'s month with `day` clamped to its end. */
+function withDay(iso: string, day: number): string {
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  return `${iso.slice(0, 8)}${pad(Math.min(day, daysInMonth(m, y)))}`;
 }

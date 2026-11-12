@@ -9,10 +9,12 @@ import {
   convertToPhp,
   draftFromForm,
   duplicateItem,
+  ensureMainSweldo,
   formFromItem,
   groupItems,
   itemProgress,
   itemsToSave,
+  lastPaymentDate,
   newId,
   presetItem,
   rebaseSample,
@@ -174,7 +176,41 @@ describe('setMainSweldo', () => {
   });
 });
 
+describe('ensureMainSweldo', () => {
+  it('promotes the earliest income when the main sweldo is deleted', () => {
+    const left = stored().filter((i) => i.id !== 'sweldo');
+    const out = ensureMainSweldo(left);
+    expect(out.map((i) => i.id)).toEqual(['13th-month']);
+    expect(out[0].kind).toEqual({ type: 'income', mainSweldo: true });
+  });
+
+  it('picks by createdAt, not list order', () => {
+    const left = stored().filter((i) => i.id !== 'sweldo');
+    const late: StoredItem = { ...byId(left, '13th-month'), id: 'raket', createdAt: 0, kind: { type: 'income', mainSweldo: false } };
+    expect(ensureMainSweldo([...left, late]).map((i) => i.id)).toEqual(['raket']);
+  });
+
+  it('changes nothing when one main exists or there is no income', () => {
+    expect(ensureMainSweldo(stored())).toEqual([]);
+    expect(ensureMainSweldo(stored().filter((i) => i.kind.type !== 'income'))).toEqual([]);
+  });
+
+  it('keeps only the earliest when several are flagged', () => {
+    const list = stored().map((i) => (i.id === '13th-month' ? { ...i, kind: { type: 'income' as const, mainSweldo: true } } : i));
+    expect(ensureMainSweldo(list).map((i) => [i.id, i.kind])).toEqual([['13th-month', { type: 'income', mainSweldo: false }]]);
+  });
+});
+
 describe('itemsToSave', () => {
+  it('promotes another income when the main sweldo becomes a bill', () => {
+    const list = stored();
+    const nowBill: StoredItem = { ...byId(list, 'sweldo'), kind: { type: 'bill' } };
+    const out = itemsToSave(list, nowBill);
+    expect(out.map((i) => i.id).sort()).toEqual(['13th-month', 'sweldo']);
+    expect(byId(out, '13th-month').kind).toEqual({ type: 'income', mainSweldo: true });
+    expect(byId(out, 'sweldo').kind).toEqual({ type: 'bill' });
+  });
+
   it('saves a new main sweldo plus the income that lost the flag', () => {
     const list = stored();
     const side: StoredItem = { ...byId(list, '13th-month'), id: 'raket', name: 'Raket', kind: { type: 'income', mainSweldo: true } };
@@ -218,6 +254,15 @@ describe('duplicateItem', () => {
     expect(copy.id).toBe('sweldo-copy');
     expect(copy.kind).toEqual({ type: 'income', mainSweldo: false });
     expect(validateItem(copy).ok).toBe(true);
+  });
+
+  it('copies the values it is given (the open form), with no write to the original', () => {
+    const edited = { ...byId(stored(), 'rent'), amount: '7500.00' };
+    const copy = duplicateItem(edited, stored().map((i) => i.id));
+    expect(copy.amount).toBe('7500.00');
+    expect(copy.id).toBe('rent-copy');
+    // Saving the copy through itemsToSave never touches the stored rent.
+    expect(itemsToSave(stored(), copy).map((i) => i.id)).toEqual(['rent-copy']);
   });
 
   it('keeps a long name within 40 characters', () => {
@@ -334,6 +379,33 @@ describe('row helpers', () => {
   it('works out the end of a monthly hulog that runs past the forecast', () => {
     // BPI 0% laptop: Jan 3 2027 x 12; the 12-month window stops after payment 11.
     expect(itemProgress(proj, byId(stored(), 'bpi-0-laptop'))).toBe('1 of 12 · ends Dec 2027');
+  });
+
+  it('finds the last nominal payment date', () => {
+    const sch = (start: string, every: StoredItem['schedule']['every'], end: string | null = null) => ({ start, end, every });
+    expect(lastPaymentDate(sch('2027-01-31', { type: 'monthly', day: 31 }), 2)).toBe('2027-02-28');
+    expect(lastPaymentDate(sch('2026-09-15', { type: 'monthly', day: 15 }), 12)).toBe('2027-08-15');
+    expect(lastPaymentDate(sch('2027-02-20', { type: 'kinsenas', second: 'thirtieth' }), 3)).toBe('2027-03-30');
+    expect(lastPaymentDate(sch('2027-01-01', { type: 'weekly' }), 3)).toBe('2027-01-15');
+    expect(lastPaymentDate(sch('2027-01-15', { type: 'monthly', day: 15 }, '2027-02-01'), 3)).toBe(null);
+  });
+
+  it('never claims "paid off" without a forecast', () => {
+    expect(itemProgress(null, byId(stored(), 'home-credit-phone'))).toBe('12 payments');
+  });
+
+  it('stays neutral for a what-if hulog with no events', () => {
+    const whatIf = { ...byId(stored(), 'spaylater'), id: 'ghost', included: false };
+    expect(itemProgress(proj, whatIf)).toBe('6 payments');
+  });
+
+  it('says "paid off" only when the last payment is before the forecast', () => {
+    const old = { ...byId(stored(), 'spaylater'), id: 'old', schedule: { start: '2025-01-13', end: null, every: { type: 'monthly' as const, day: 13 } } };
+    expect(itemProgress(proj, old)).toBe('6 of 6 · paid off');
+    const later = { ...old, id: 'later', schedule: { ...old.schedule, start: '2028-03-13' } };
+    expect(itemProgress(proj, later)).toBe('6 payments · starts Mar 2028');
+    const done = { ...old, id: 'done', schedule: { ...old.schedule, start: '2026-11-13' }, kind: { type: 'installment' as const, totalPayments: 6, paidOverride: 6 } };
+    expect(itemProgress(proj, done)).toBe('6 of 6 · paid off');
   });
 
   it('shows the paluwagan turn and payout', () => {

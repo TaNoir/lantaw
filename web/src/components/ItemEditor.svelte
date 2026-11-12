@@ -20,6 +20,7 @@
     defaultCadence,
     draftFromForm,
     duplicateItem,
+    ensureMainSweldo,
     firstDate,
     formFromItem,
     itemsToSave,
@@ -50,6 +51,9 @@
   let attempted = $state(false);
   let saving = $state(false);
   let confirmDelete = $state(false);
+  let confirmDiscard = $state(false);
+  /** Where focus was when "Discard changes?" appeared, to go back on "Keep editing". */
+  let beforeDiscard: HTMLElement | null = null;
   let status = $state('');
   const touched = { cadence: false, businessDay: false };
 
@@ -92,6 +96,17 @@
   const isCurrentMain = $derived(!!editingId && app.items.some((i) => i.id === editingId && isMainItem(i)));
   /** With no other main sweldo, saving an income always makes it the main one. */
   const forcedMain = $derived(otherMain === null);
+  /** Who takes over if this main sweldo is saved as another type or deleted (null: nobody). */
+  const successor = $derived(
+    isCurrentMain ? (ensureMainSweldo(app.items.filter((i) => i.id !== editingId)).find(isMainItem) ?? null) : null,
+  );
+  const typeChangeNote = $derived(
+    isCurrentMain && form.kind !== 'income'
+      ? successor
+        ? `This is your main sweldo. Saved as another type, ${successor.name} becomes your main sweldo.`
+        : 'This is your main sweldo. Saved as another type, your cutoffs fall back to the 15th and the last day of the month.'
+      : '',
+  );
   const mainHint = $derived.by(() => {
     if (isCurrentMain) {
       return 'This is your main sweldo: its paydays set your cutoffs. To change that, open another income and make it the main sweldo.';
@@ -247,8 +262,11 @@
     if (!item) return;
     saving = true;
     try {
-      await app.saveItems(itemsToSave(app.items, item));
-      close(editingId ? `Saved ${item.name}.` : `Added ${item.name}.`);
+      const writes = itemsToSave(app.items, item);
+      await app.saveItems(writes);
+      const promoted = writes.find((w) => w.id !== item.id && isMainItem(w));
+      const done = editingId ? `Saved ${item.name}.` : `Added ${item.name}.`;
+      close(promoted ? `${done} ${promoted.name} is now your main sweldo.` : done);
     } catch {
       status = 'Couldn’t save on this device. Check that site data is allowed, then try again.';
     } finally {
@@ -262,15 +280,16 @@
     if (!item) return;
     saving = true;
     try {
-      const writes = dirty ? itemsToSave(app.items, item) : [];
+      // The copy takes what the form shows now; the stored original is not written.
       const copy = duplicateItem(item, [...app.items.map((i) => i.id), item.id]);
-      await app.saveItems([...writes, copy]);
+      await app.saveItems(itemsToSave(app.items, copy));
       const stored = app.items.find((i) => i.id === copy.id) ?? copy;
       form = formFromItem(stored, app.today);
       baseline = JSON.stringify(form);
       editingId = stored.id;
       attempted = false;
-      status = `Saved a copy. You’re now editing “${stored.name}”.`;
+      confirmDiscard = false;
+      status = `Saved a copy. The original is unchanged. You’re now editing “${stored.name}”.`;
       await tick();
       document.getElementById(fid('name'))?.focus();
     } catch {
@@ -286,7 +305,11 @@
     const name = form.name.trim() || 'the item';
     try {
       await app.deleteItem(editingId);
-      close(`Deleted ${name}.`);
+      // Deleting the main sweldo hands the flag to the earliest remaining income.
+      const fixes = ensureMainSweldo(app.items);
+      if (fixes.length > 0) await app.saveItems(fixes);
+      const promoted = fixes.find(isMainItem);
+      close(promoted ? `Deleted ${name}. ${promoted.name} is now your main sweldo.` : `Deleted ${name}.`);
     } catch {
       status = 'Couldn’t delete on this device. Try again.';
       saving = false;
@@ -304,9 +327,32 @@
     document.getElementById('ie-del')?.focus();
   }
 
+  /** Cancel, ×, Esc and a backdrop tap: close, but ask first when there are unsaved changes. */
+  async function requestClose() {
+    if (saving) return;
+    if (!dirty) {
+      close();
+      return;
+    }
+    if (!confirmDiscard) {
+      beforeDiscard = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      confirmDiscard = true;
+    }
+    await tick();
+    document.getElementById('ie-keep')?.focus();
+  }
+  async function keepEditing() {
+    confirmDiscard = false;
+    await tick();
+    (beforeDiscard?.isConnected ? beforeDiscard : titleEl)?.focus();
+  }
+  function onCancel(e: Event) {
+    // Esc: never close mid-save, and never drop edits without asking.
+    e.preventDefault();
+    void requestClose();
+  }
   function onBackdrop(e: MouseEvent) {
-    // A tap outside the sheet closes it, unless there are unsaved changes.
-    if (e.target === dlg && !dirty && !saving) close();
+    if (e.target === dlg) void requestClose();
   }
 </script>
 
@@ -326,13 +372,14 @@
   class="sheet"
   aria-labelledby="ie-title"
   onclose={() => onclose(closeMessage)}
+  oncancel={onCancel}
   onclick={onBackdrop}
 >
   <form class="inner" novalidate onsubmit={save}>
     <header class="head">
       <span class="grip" aria-hidden="true"></span>
       <h2 id="ie-title" tabindex="-1" bind:this={titleEl}>{editingId ? 'Edit item' : 'New item'}</h2>
-      <button type="button" class="x" aria-label="Close" onclick={() => close()}>
+      <button type="button" class="x" aria-label="Close" onclick={requestClose}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12 M18 6L6 18" /></svg>
       </button>
     </header>
@@ -361,6 +408,7 @@
           {/each}
         </div>
         {@render msgs('kind')}
+        {#if typeChangeNote}<p class="hint">{typeChangeNote}</p>{/if}
       </fieldset>
 
       <div class="field">
@@ -372,7 +420,15 @@
           maxlength={NAME_MAX}
           autocomplete="off"
           enterkeyhint="next"
-          placeholder={form.kind === 'income' ? 'Sweldo' : form.kind === 'installment' ? 'Home Credit phone' : 'Davao Light'}
+          placeholder={form.kind === 'income'
+            ? 'e.g. Sweldo'
+            : form.kind === 'installment'
+              ? 'e.g. Home Credit phone'
+              : form.kind === 'paluwagan'
+                ? 'e.g. Office paluwagan'
+                : form.kind === 'oneOff'
+                  ? 'e.g. Pasko gifts'
+                  : 'e.g. Davao Light'}
           aria-invalid={!!errors.name}
           aria-describedby={desc('name')}
         />
@@ -390,7 +446,7 @@
               inputmode="decimal"
               autocomplete="off"
               enterkeyhint="next"
-              placeholder="0"
+              placeholder="e.g. 1,500"
               bind:value={form.amount}
               aria-invalid={!!errors.amount}
               aria-describedby={desc('amount', !!fxPreview)}
@@ -633,7 +689,7 @@
             list="ie-paid-list"
             autocomplete="off"
             maxlength="30"
-            placeholder="GCash, Maya, BPI…"
+            placeholder="e.g. GCash, Maya, BPI"
             bind:value={form.paidFrom}
           />
           <datalist id="ie-paid-list">
@@ -662,7 +718,10 @@
       {#if editingId}
         <div class="danger">
           {#if confirmDelete}
-            <p class="confirm" id="ie-del-q">Delete “{form.name.trim() || 'this item'}”? This can’t be undone.</p>
+            <p class="confirm" id="ie-del-q">
+              Delete “{form.name.trim() || 'this item'}”? This can’t be undone.{#if successor}
+                {' '}{successor.name} becomes your main sweldo.{/if}
+            </p>
             <div class="confirm-btns" role="group" aria-labelledby="ie-del-q">
               <button type="button" class="btn ghost" id="ie-del-no" onclick={cancelDelete}>Cancel</button>
               <button type="button" class="btn danger-btn" onclick={remove} disabled={saving}>Yes, delete</button>
@@ -681,11 +740,19 @@
       {/if}
     </div>
 
-    <footer class="foot">
-      <button type="button" class="btn ghost" onclick={() => close()}>Cancel</button>
-      <button type="submit" class="btn primary" aria-busy={saving || undefined}>
-        {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add item'}
-      </button>
+    <footer class="foot" class:ask={confirmDiscard}>
+      {#if confirmDiscard}
+        <p class="confirm" id="ie-discard-q">Discard your changes?</p>
+        <div class="confirm-btns" role="group" aria-labelledby="ie-discard-q">
+          <button type="button" class="btn ghost" id="ie-keep" onclick={keepEditing}>Keep editing</button>
+          <button type="button" class="btn danger-btn" onclick={() => close()}>Discard</button>
+        </div>
+      {:else}
+        <button type="button" class="btn ghost" onclick={requestClose}>Cancel</button>
+        <button type="submit" class="btn primary" aria-busy={saving || undefined}>
+          {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add item'}
+        </button>
+      {/if}
     </footer>
   </form>
 </dialog>
@@ -842,6 +909,16 @@
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
     background: var(--surface);
+  }
+
+  .foot.ask {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .foot.ask .confirm {
+    flex: 1 1 auto;
   }
 
   /* ---------- fields ---------- */
