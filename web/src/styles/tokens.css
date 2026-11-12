@@ -8,6 +8,11 @@
   --mango: #f4a940;
   --coral: #e8604c;
   --sand: #f4f1ea;
+  --surface-2: #183b4c;
+  --border: #1d4152;
+  --teal-text: #7fd8cf;
+  --coral-text: #f39a8b;
+  --on-mango: #10222e;
 
   --font: 'Manrope Variable', system-ui, sans-serif;
   --space-1: 4px;
@@ -26,6 +31,10 @@
   --teal: #1f8a84;
   --mango: #c9790f;
   --coral: #c9472f;
+  --surface-2: #eef3f2;
+  --border: #e2ded4;
+  --teal-text: #17736e;
+  --coral-text: #b23e28;
   color-scheme: light;
 }
 
@@ -38,6 +47,10 @@
     --teal: #1f8a84;
     --mango: #c9790f;
     --coral: #c9472f;
+    --surface-2: #eef3f2;
+    --border: #e2ded4;
+    --teal-text: #17736e;
+    --coral-text: #b23e28;
     color-scheme: light;
   }
 }
