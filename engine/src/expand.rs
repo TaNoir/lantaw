@@ -42,13 +42,13 @@ struct Occurrence {
 /// The unsigned size of one payment in centavos, converted to pesos when the
 /// item is in a foreign currency. Errors if the currency has no rate.
 fn unit_centavos(item: &Item, ctx: &Ctx) -> Result<i64, EngineError> {
-    let pesos = if item.currency == "PHP" {
+    let pesos = if item.currency.eq_ignore_ascii_case("PHP") {
         item.amount
     } else {
         let rate = ctx
             .fx
             .iter()
-            .find(|r| r.currency == item.currency)
+            .find(|r| r.currency.eq_ignore_ascii_case(&item.currency))
             .ok_or_else(|| EngineError::MissingFxRate(item.currency.clone()))?;
         convert_to_php(item.amount, rate.php_per_unit, ctx.fee_pct)
     };
@@ -66,16 +66,19 @@ fn moved_note(nominal: NaiveDate) -> String {
 /// `as_of < d < horizon_end`, or `d == as_of` and the item was not already
 /// paid on `as_of` (`ctx.paid_on_as_of`).
 pub fn expand(item: &Item, ctx: &Ctx) -> Result<Vec<Event>, EngineError> {
-    let unit = unit_centavos(item, ctx)?;
-
     let in_forecast = |d: NaiveDate| {
         (d > ctx.as_of && d < ctx.horizon_end)
             || (d == ctx.as_of && !ctx.paid_on_as_of.contains(&item.id))
     };
 
     // How many schedule dates belong to the item at all (None = unlimited).
+    // An installment with `paid_override` is NOT capped: the override is the
+    // user's correction for a stale start date, so we simply take the next
+    // `total - k` in-forecast dates instead.
     let limit = match &item.kind {
-        ItemKind::Installment { total_payments, .. } => Some(*total_payments as usize),
+        ItemKind::Installment { total_payments, paid_override: None } => {
+            Some(*total_payments as usize)
+        }
         ItemKind::Paluwagan { members, .. } => Some(*members as usize),
         _ => None,
     };
@@ -91,70 +94,84 @@ pub fn expand(item: &Item, ctx: &Ctx) -> Result<Vec<Event>, EngineError> {
             date: ctx.holidays.shift(nominal, item.business_day),
         });
 
-    // Builds the final event, adding the "moved from" note when shifted.
-    let make = |o: &Occurrence, centavos: i64, base_note: Option<String>| {
-        let note = match (base_note, o.date != o.nominal) {
-            (Some(n), true) => Some(format!("{n} \u{b7} {}", moved_note(o.nominal))),
-            (None, true) => Some(moved_note(o.nominal)),
-            (n, false) => n,
-        };
-        Event {
-            date: o.date,
-            nominal_date: o.nominal,
-            item_id: item.id.clone(),
-            name: item.name.clone(),
-            centavos,
-            note,
-            included: item.included,
-        }
-    };
-
-    let mut events = Vec::new();
+    // Step 1: decide which occurrences are in the forecast, each with a
+    // multiplier (applied to the payment size) and a base note.
+    let mut pending: Vec<(Occurrence, i64, String)> = Vec::new();
+    let mut none_note = false;
     match &item.kind {
         ItemKind::Installment { total_payments, paid_override } => {
             let upcoming = occurrences.filter(|o| in_forecast(o.date));
             match paid_override {
-                // The user says k payments are already made: take exactly the
-                // remaining ones and number them from k + 1.
+                // k payments already made: take exactly the remaining ones
+                // and number them from k + 1.
                 Some(k) => {
                     let remaining = total_payments.saturating_sub(*k) as usize;
                     for (j, o) in upcoming.take(remaining).enumerate() {
                         let note = format!("{} of {}", k + 1 + j as u32, total_payments);
-                        events.push(make(&o, -unit, Some(note)));
+                        pending.push((o, -1, note));
                     }
                 }
                 // Otherwise number by position in the schedule.
                 None => {
                     for o in upcoming {
                         let note = format!("{} of {}", o.position, total_payments);
-                        events.push(make(&o, -unit, Some(note)));
+                        pending.push((o, -1, note));
                     }
                 }
             }
         }
         ItemKind::Paluwagan { members, my_turn } => {
             for o in occurrences.filter(|o| in_forecast(o.date)) {
-                let (centavos, note) = if o.position == *my_turn {
+                if o.position == *my_turn {
                     // Everyone else pays in; we collect (members - 1) shares.
                     let others = i64::from(members.saturating_sub(1));
-                    (unit.saturating_mul(others), "payout".to_string())
+                    pending.push((o, others, "payout".to_string()));
                 } else {
-                    (-unit, format!("turn {} of {}", o.position, members))
-                };
-                events.push(make(&o, centavos, Some(note)));
+                    let note = format!("turn {} of {}", o.position, members);
+                    pending.push((o, -1, note));
+                }
             }
         }
         kind => {
-            let signed = match kind {
-                ItemKind::Income { .. } | ItemKind::OneOff { direction: Direction::In } => unit,
-                _ => -unit, // Bill and OneOff out
+            none_note = true;
+            let sign = match kind {
+                ItemKind::Income { .. } | ItemKind::OneOff { direction: Direction::In } => 1,
+                _ => -1, // Bill and OneOff out
             };
             for o in occurrences.filter(|o| in_forecast(o.date)) {
-                events.push(make(&o, signed, None));
+                pending.push((o, sign, String::new()));
             }
         }
     }
-    Ok(events)
+
+    // Nothing in the window: no event, and no need for an exchange rate.
+    if pending.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Step 2: price the payment (needs an FX rate only now) and build events.
+    let unit = unit_centavos(item, ctx)?;
+    Ok(pending
+        .into_iter()
+        .map(|(o, factor, text)| {
+            let base = if none_note { None } else { Some(text) };
+            // Add the "moved from" note when the business-day rule shifted it.
+            let note = match (base, o.date != o.nominal) {
+                (Some(n), true) => Some(format!("{n} \u{b7} {}", moved_note(o.nominal))),
+                (None, true) => Some(moved_note(o.nominal)),
+                (n, false) => n,
+            };
+            Event {
+                date: o.date,
+                nominal_date: o.nominal,
+                item_id: item.id.clone(),
+                name: item.name.clone(),
+                centavos: unit.saturating_mul(factor),
+                note,
+                included: item.included,
+            }
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -299,5 +316,35 @@ mod tests {
         assert_eq!(ev[1].date, d(2026, 11, 27));
         assert!(note(&ev[1]).contains("moved from Mon Nov 30"));
         assert_eq!(ev[0].centavos, 1_800_000);
+    }
+
+    #[test]
+    fn installment_paid_override_with_old_start() {
+        let it = item(
+            "hc",
+            ItemKind::Installment { total_payments: 12, paid_override: Some(3) },
+            dec!(2083), "PHP", d(2026, 1, 15), Cadence::Monthly { day: 15 }, BusinessDayRule::None,
+        );
+        let ev = run(&it, &[]).unwrap();
+        assert_eq!(ev.len(), 9);
+        assert_eq!(note(&ev[0]), "4 of 12");
+        assert_eq!(note(&ev[8]), "12 of 12");
+    }
+
+    #[test]
+    fn lowercase_php_needs_no_rate() {
+        let it = item(
+            "b", ItemKind::Bill, dec!(100), "php", d(2026, 11, 20), Cadence::Once, BusinessDayRule::None,
+        );
+        let ev = run(&it, &[]).unwrap();
+        assert_eq!(ev[0].centavos, -10000);
+    }
+
+    #[test]
+    fn missing_rate_ignored_when_no_occurrences_in_window() {
+        let it = item(
+            "sg", ItemKind::Bill, dec!(10), "SGD", d(2026, 1, 1), Cadence::Once, BusinessDayRule::None,
+        );
+        assert_eq!(run(&it, &[]), Ok(Vec::new()));
     }
 }
