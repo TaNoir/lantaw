@@ -5,6 +5,7 @@
   import type { EngineEvent } from '../lib/engine-types';
   import { isBalanceStale } from '../lib/input';
   import { nextCutoffIndex } from '../lib/chart';
+  import { movedReason } from '../lib/cutoff';
   import { formatPeso, parseRate, toCentavos } from '../lib/money';
   import {
     addDays,
@@ -14,7 +15,6 @@
     formatDayRange,
     formatMonthYear,
     formatShort,
-    weekday,
     yearOf,
   } from '../lib/dates';
 
@@ -52,13 +52,7 @@
   const isLastCutoff = $derived(p ? cutIdx === p.cutoffs.length - 1 : true);
   const cutEvents = $derived(cutoff && p ? cutoff.eventIndices.map((i) => p.events[i]) : []);
 
-  const LONG_DAY: Record<string, string> = { Sat: 'Saturday', Sun: 'Sunday' };
-  const movedNote = $derived.by(() => {
-    if (!cutoff || cutoff.nominal === cutoff.payday) return '';
-    const wd = weekday(cutoff.nominal);
-    const why = LONG_DAY[wd] ? `the ${ordinal(Number(cutoff.nominal.slice(8)))} is a ${LONG_DAY[wd]}` : `${formatShort(cutoff.nominal)} is a holiday`;
-    return `Sweldo comes ${weekday(cutoff.payday)} ${formatShort(cutoff.payday)} because ${why}.`;
-  });
+  const movedNote = $derived(cutoff ? movedReason(cutoff) : '');
 
   // ---- chips ----
   const gipitIdx = $derived(p?.gipit ? daysBetween(p.start, p.gipit.date) : -1);
@@ -123,12 +117,6 @@
   // ---- helpers ----
   function signed(c: number): string {
     return c > 0 ? `+${formatPeso(c)}` : formatPeso(c);
-  }
-
-  function ordinal(d: number): string {
-    const t = d % 100;
-    if (t >= 11 && t <= 13) return `${d}th`;
-    return `${d}${['th', 'st', 'nd', 'rd'][d % 10] ?? 'th'}`;
   }
 
   function jumpTo(date: string) {
