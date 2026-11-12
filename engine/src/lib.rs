@@ -2,3 +2,4 @@
 //! No I/O, no clock, no randomness: everything arrives as arguments from JS.
 
 pub mod money;
+pub mod model;
