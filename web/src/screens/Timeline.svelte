@@ -9,6 +9,7 @@
   import {
     addDays,
     daysBetween,
+    formatCompact,
     formatDate,
     formatDayRange,
     formatMonthYear,
@@ -157,7 +158,14 @@
 {:else if app.status === 'failed'}
   <section class="notice error" role="alert">
     <h2>Lantaw couldn’t start</h2>
-    <p>Its forecasting engine didn’t load. Reload the page to try again. Your data is safe on this device.</p>
+    {#if app.failure === 'storage'}
+      <p>
+        It can’t open its storage on this device. Private browsing or blocked site data can cause this. Allow site data
+        for Lantaw, or use a normal window, then reload.
+      </p>
+    {:else}
+      <p>Its forecasting engine didn’t load. Reload the page to try again. Your data is safe on this device.</p>
+    {/if}
   </section>
 {:else if app.items.length === 0}
   <section class="empty">
@@ -314,7 +322,7 @@
             <ul class="events">
               {#each upcoming as u, k (k)}
                 <li>
-                  <span class="when">{formatShort(u.date, thisYear)}</span>
+                  <span class="when">{formatCompact(u.date, thisYear)}</span>
                   <span class="what"><span class="name">{u.label}</span></span>
                   <span class="amt" class:pos={u.tone !== 'neg'}>{u.amount}</span>
                 </li>
@@ -495,9 +503,8 @@
     gap: 10px 16px;
     padding: 14px 16px;
     border-radius: var(--radius);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--mango);
+    background: color-mix(in srgb, var(--mango) 9%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--mango) 45%, transparent);
   }
   .banner p {
     margin: 0;
@@ -511,7 +518,8 @@
     margin: 4px 0 12px;
   }
   .banner.danger {
-    border-left-color: var(--coral);
+    background: color-mix(in srgb, var(--coral) 9%, var(--surface));
+    border-color: color-mix(in srgb, var(--coral) 45%, transparent);
   }
   .banner-title {
     margin: 0;
@@ -637,6 +645,9 @@
     border-bottom: 1px solid var(--border);
     font-size: 0.9375rem;
   }
+  .coming .events li {
+    grid-template-columns: 5.75rem minmax(0, 1fr) auto;
+  }
   .events li:last-child {
     border-bottom: 0;
   }
@@ -646,7 +657,19 @@
     border-radius: 10px;
     border-bottom-color: transparent;
     background: color-mix(in srgb, var(--mango) 13%, transparent);
-    box-shadow: inset 3px 0 0 var(--mango);
+  }
+  .events li.on .when {
+    color: var(--text);
+  }
+  .events li.on .when::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--mango);
+    vertical-align: 0.1em;
   }
   .when {
     color: var(--muted);
@@ -791,9 +814,8 @@
     margin: 32px 16px;
     padding: 18px;
     border-radius: 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--coral);
+    background: color-mix(in srgb, var(--coral) 9%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--coral) 45%, transparent);
   }
   .notice h2 {
     margin: 0 0 6px;

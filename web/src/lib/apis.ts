@@ -35,22 +35,42 @@ export async function getHolidays(year: number, fetchFn: typeof fetch = fetch): 
   }
 }
 
-export async function holidayDates(
-  s: AppSettings,
-  years: number[],
-  fetchFn: typeof fetch = fetch,
-): Promise<string[]> {
+/** Network-free holidays for a year: the cached API result, else the bundled list, else []. */
+async function cachedHolidays(year: number): Promise<Holiday[]> {
+  const cached = await db.cache.get(`holidays:${year}`);
+  if (cached) return cached.value as Holiday[];
+  return (bundled as Record<string, Holiday[]>)[String(year)] ?? [];
+}
+
+/** Merges per-year lists with the Davao local days (when on) and custom dates; sorted, unique. */
+function mergeHolidays(s: AppSettings, years: number[], lists: Holiday[][]): string[] {
   const out = new Set<string>();
-  for (const y of years) {
-    for (const h of await getHolidays(y, fetchFn)) out.add(h.date);
+  years.forEach((y, k) => {
+    for (const h of lists[k]) out.add(h.date);
     if (s.davaoHolidays) {
       for (const d of DAVAO_LOCAL) {
         out.add(`${y}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`);
       }
     }
-  }
+  });
   for (const c of s.customHolidays) out.add(c);
   return [...out].sort();
+}
+
+/** Holiday dates for `years`, fetching uncached years from Nager.Date (all years at once). */
+export async function holidayDates(
+  s: AppSettings,
+  years: number[],
+  fetchFn: typeof fetch = fetch,
+): Promise<string[]> {
+  const lists = await Promise.all(years.map((y) => getHolidays(y, fetchFn)));
+  return mergeHolidays(s, years, lists);
+}
+
+/** Same as `holidayDates` but never touches the network: cache, then bundled list. */
+export async function holidayDatesCached(s: AppSettings, years: number[]): Promise<string[]> {
+  const lists = await Promise.all(years.map((y) => cachedHolidays(y)));
+  return mergeHolidays(s, years, lists);
 }
 
 export async function getRate(currency: string, fetchFn: typeof fetch = fetch): Promise<FxRate | null> {
@@ -73,6 +93,12 @@ export async function getRate(currency: string, fetchFn: typeof fetch = fetch): 
   } catch {
     return cached ? (cached.value as FxRate) : null;
   }
+}
+
+/** The cached rate for `currency`, however old, or null. Never touches the network. */
+export async function getCachedRate(currency: string): Promise<FxRate | null> {
+  const cached = await db.cache.get(`fx:${currency.toUpperCase()}`);
+  return cached ? (cached.value as FxRate) : null;
 }
 
 export async function setManualRate(currency: string, phpPerUnit: string, today: string): Promise<void> {

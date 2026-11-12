@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db, DEFAULT_SETTINGS } from './db';
-import { getHolidays, getRate, holidayDates, setManualRate } from './apis';
+import { getCachedRate, getHolidays, getRate, holidayDates, holidayDatesCached, setManualRate } from './apis';
 
 const json = (body: unknown) => ({ ok: true, json: async () => body }) as Response;
 
@@ -74,5 +74,55 @@ describe('getRate', () => {
     const f = vi.fn();
     expect(await getRate('USD', f as unknown as typeof fetch)).toEqual({ currency: 'USD', phpPerUnit: '58.5', asOf: '2026-11-13' });
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe('cache-first lookups (no network)', () => {
+  const noFetch = () => vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+    throw new Error('network must not be used');
+  });
+
+  it('holidayDatesCached uses the cached year, then the bundled list, then nothing', async () => {
+    const spy = noFetch();
+    await db.cache.put({ key: 'holidays:2027', value: [{ date: '2027-06-01', name: 'Cached day' }], fetchedAt: 1 });
+    const s = { ...DEFAULT_SETTINGS('2026-11-13'), davaoHolidays: false, customHolidays: ['2040-02-02'] };
+    const out = await holidayDatesCached(s, [2026, 2027, 2040]);
+    expect(out).toContain('2027-06-01');
+    expect(out.filter((d) => d.startsWith('2026-')).length).toBe(18);
+    expect(out).toContain('2040-02-02');
+    expect(out.filter((d) => d.startsWith('2040-'))).toEqual(['2040-02-02']);
+    expect([...out].sort()).toEqual(out);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('holidayDatesCached adds Davao local days only when enabled', async () => {
+    const spy = noFetch();
+    const base = DEFAULT_SETTINGS('2027-01-01');
+    expect(await holidayDatesCached({ ...base, davaoHolidays: true }, [2027])).toContain('2027-03-16');
+    expect(await holidayDatesCached({ ...base, davaoHolidays: false }, [2027])).not.toContain('2027-03-16');
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('getCachedRate returns a cached rate of any age, or null', async () => {
+    const spy = noFetch();
+    expect(await getCachedRate('usd')).toBeNull();
+    await setManualRate('USD', '60', '2026-11-01');
+    await db.cache.update('fx:USD', { fetchedAt: Date.now() - 30 * 86_400_000 });
+    expect(await getCachedRate('usd')).toEqual({ currency: 'USD', phpPerUnit: '60', asOf: '2026-11-01' });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe('holidayDates network refresh', () => {
+  it('requests every year at once instead of one after another', async () => {
+    const pending: ((r: Response) => void)[] = [];
+    const f = vi.fn((_u: string) => new Promise<Response>((res) => pending.push(res)));
+    const done = holidayDates(DEFAULT_SETTINGS('2026-11-13'), [2026, 2027, 2028], f as unknown as typeof fetch);
+    await vi.waitFor(() => expect(f).toHaveBeenCalledTimes(3));
+    for (const res of pending) res(json([]));
+    await done;
   });
 });

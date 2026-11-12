@@ -53,6 +53,13 @@ export function formatShort(iso: string, refYear?: number): string {
   return refYear !== undefined && refYear !== y ? `${base}, ${y}` : base;
 }
 
+/** "Mar 13", or "Mar 13 ’27" when the year differs from `refYear` (for narrow columns). */
+export function formatCompact(iso: string, refYear: number): string {
+  const [y, m, d] = parts(iso);
+  const base = `${MONTHS[m - 1]} ${d}`;
+  return y === refYear ? base : `${base} ’${String(y).slice(2)}`;
+}
+
 /** "Mar 15–29", "Nov 27 – Dec 14", or "Mar 15" for a single day. */
 export function formatDayRange(from: string, to: string): string {
   if (from === to) return formatShort(from);

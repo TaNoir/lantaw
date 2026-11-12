@@ -194,8 +194,7 @@
     }
     .tabs {
       position: sticky;
-      top: 0;
-      inset: auto;
+      inset: 0 auto auto auto;
       height: 100dvh;
       display: flex;
       flex-direction: column;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, daysBetween, formatDate, formatDayRange, formatMonthTick, formatShort, weekday } from './dates';
+import { addDays, daysBetween, formatDate, formatCompact, formatDayRange, formatMonthTick, formatShort, weekday } from './dates';
 
 describe('date string arithmetic (UTC-safe)', () => {
   it('counts whole days between ISO dates', () => {
@@ -35,6 +35,11 @@ describe('labels', () => {
     expect(formatShort('2027-02-28', 2027)).toBe('Feb 28');
     expect(formatShort('2027-02-28', 2026)).toBe('Feb 28, 2027');
     expect(formatShort('2027-02-28')).toBe('Feb 28');
+  });
+
+  it('formats a compact date with a short year when it differs', () => {
+    expect(formatCompact('2027-03-13', 2027)).toBe('Mar 13');
+    expect(formatCompact('2027-03-13', 2026)).toBe('Mar 13 ’27');
   });
 
   it('formats a day range', () => {
