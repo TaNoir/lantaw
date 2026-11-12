@@ -243,6 +243,18 @@ impl fmt::Display for EngineError {
     }
 }
 
+impl EngineError {
+    /// The message thrown to JS: a stable code prefix the web app can switch on,
+    /// kept separate from `Display` (which is for humans and logs).
+    pub fn js_message(&self) -> String {
+        match self {
+            EngineError::MissingFxRate(cur) => format!("MISSING_FX:{cur}"),
+            EngineError::InvalidItem { id, reason } => format!("INVALID_ITEM:{id}:{reason}"),
+            EngineError::Backup(msg) => format!("BACKUP:{msg}"),
+        }
+    }
+}
+
 impl std::error::Error for EngineError {}
 
 #[cfg(test)]
