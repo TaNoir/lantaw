@@ -1,0 +1,43 @@
+/* Design tokens. Dark is the default; light follows the system unless data-theme is set. */
+:root {
+  --bg: #0b2230;
+  --surface: #0e2a3a;
+  --text: #f4f1ea;
+  --muted: #a9bcc6;
+  --teal: #3fb8af;
+  --mango: #f4a940;
+  --coral: #e8604c;
+  --sand: #f4f1ea;
+
+  --font: 'Manrope Variable', system-ui, sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --radius: 12px;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f6f3ec;
+  --surface: #ffffff;
+  --text: #10222e;
+  --muted: #5a707b;
+  --teal: #1f8a84;
+  --mango: #c9790f;
+  --coral: #c9472f;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #f6f3ec;
+    --surface: #ffffff;
+    --text: #10222e;
+    --muted: #5a707b;
+    --teal: #1f8a84;
+    --mango: #c9790f;
+    --coral: #c9472f;
+    color-scheme: light;
+  }
+}
