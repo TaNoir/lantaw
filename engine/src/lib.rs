@@ -8,3 +8,4 @@ pub mod schedule;
 pub mod expand;
 pub mod cutoffs;
 pub mod project;
+pub mod compare;
