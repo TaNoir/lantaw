@@ -4,7 +4,18 @@
 
   // Loading, failed and empty states shared by the Cutoffs and Plans screens
   // (same look as the Timeline's). Renders `children` once there is a forecast.
-  let { emptyTitle, emptyBody, children }: { emptyTitle: string; emptyBody: string; children: Snippet } = $props();
+  let {
+    emptyTitle = '',
+    emptyBody = '',
+    requireForecast = true,
+    children,
+  }: {
+    emptyTitle?: string;
+    emptyBody?: string;
+    /** False for screens (Items) that render with no items and no forecast yet. */
+    requireForecast?: boolean;
+    children: Snippet;
+  } = $props();
 </script>
 
 {#if app.status === 'loading'}
@@ -24,7 +35,7 @@
       <p>Its forecasting engine didn’t load. Reload the page to try again. Your data is safe on this device.</p>
     {/if}
   </section>
-{:else if app.items.length === 0 || !app.projection}
+{:else if requireForecast && (app.items.length === 0 || !app.projection)}
   <section class="empty">
     <svg class="ridge" viewBox="0 0 240 90" aria-hidden="true">
       <path class="ridge-fill" d="M0 70 L40 52 L64 58 L104 22 L120 30 L150 46 L184 38 L240 50 L240 90 L0 90 Z" />

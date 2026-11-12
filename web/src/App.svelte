@@ -4,6 +4,7 @@
   import Timeline from './screens/Timeline.svelte';
   import Cutoffs from './screens/Cutoffs.svelte';
   import Plans from './screens/Plans.svelte';
+  import Items from './screens/Items.svelte';
   import { app, type Route } from './lib/state.svelte';
 
   let mainEl: HTMLElement | undefined = $state();
@@ -57,6 +58,8 @@
       <Cutoffs />
     {:else if app.route === 'plans'}
       <Plans />
+    {:else if app.route === 'items'}
+      <Items />
     {:else}
       <section class="soon">
         <h1>{TITLES[app.route]}</h1>

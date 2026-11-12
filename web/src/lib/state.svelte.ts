@@ -18,12 +18,14 @@ import {
   getSettings,
   listItems,
   putItem,
+  requestPersist,
   saveSettings as dbSaveSettings,
   type AppSettings,
   type StoredItem,
 } from './db';
 import { getCachedRate, getRate, holidayDates, holidayDatesCached, setManualRate } from './apis';
 import { buildInput, todayLocal } from './input';
+import { rebaseSample } from './items';
 import { daysBetween, yearOf } from './dates';
 
 export type Route = 'timeline' | 'cutoffs' | 'plans' | 'kaya' | 'items' | 'settings' | 'first-run';
@@ -126,13 +128,9 @@ class AppState {
       if (new URLSearchParams(location.search).has('demo')) {
         if ((await db.items.count()) === 0) {
           const sample = (await import('./sample/sample-budget.json')).default as unknown as Input;
-          await dbSaveSettings({
-            ...DEFAULT_SETTINGS(this.today),
-            ...sample.settings,
-            onboarded: true,
-            isSample: true,
-          });
-          await db.items.bulkPut(sample.items.map((it, n) => ({ ...it, createdAt: n + 1, updatedAt: n + 1 })));
+          const { settings, items } = rebaseSample(sample, this.today);
+          await dbSaveSettings(settings);
+          await db.items.bulkPut(items);
           for (const r of sample.fx) await setManualRate(r.currency, r.phpPerUnit, r.asOf);
         }
         const url = new URL(location.href);
@@ -185,8 +183,16 @@ class AppState {
   }
 
   async saveItem(item: Item | StoredItem): Promise<void> {
-    await putItem(item);
+    await this.saveItems([item]);
+  }
+
+  /** Saves several items (e.g. an item plus the income that lost the main-sweldo flag), then recomputes once. */
+  async saveItems(list: (Item | StoredItem)[]): Promise<void> {
+    const wasEmpty = this.items.length === 0;
+    for (const item of list) await putItem(item);
     this.items = [...(await listItems())].sort(byCreated);
+    // Ask the browser to keep the data once there is something worth keeping.
+    if (wasEmpty && this.items.length > 0) void requestPersist();
     await this.#sync();
   }
 
