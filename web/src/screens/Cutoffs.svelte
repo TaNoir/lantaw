@@ -27,6 +27,7 @@
   const isCurrent = $derived(!!cutoff && cutoff.payday <= app.today && app.today <= cutoff.end);
 
   function step(dir: 1 | -1) {
+    if ((dir === -1 && idx === 0) || (dir === 1 && idx >= count - 1)) return;
     picked = Math.min(Math.max(idx + dir, 0), count - 1);
   }
   function onKey(e: KeyboardEvent) {
@@ -111,14 +112,16 @@
   {#if p && cutoff && spark}
     <div class="page">
       <figure class="spark">
+        <div class="plot">
         <svg viewBox="0 0 {SW} {SH}" preserveAspectRatio="none" role="img" aria-label={sparkLabel}>
           {#if bandX}<rect class="band" x={bandX.x} y="0" width={bandX.w} height={SH} />{/if}
           <path class="area" d={spark.area} transform="translate({PX} {PY})" />
           <path class="line" d={spark.line} transform="translate({PX} {PY})" vector-effect="non-scaling-stroke" />
         </svg>
         {#if todayPt}
-          <span class="today" style="left:{(todayPt.x / SW) * 100}%; top:{(todayPt.y / SH) * 100}%" aria-hidden="true"></span>
+          <span class="today" style="left:{(todayPt.x / SW) * 100}%; top:{((todayPt.y) / SH) * 100}%" aria-hidden="true"></span>
         {/if}
+        </div>
         <figcaption class="spark-cap">
           <span>{formatShort(p.start, thisYear)}</span>
           <span>{formatMonthYear(addDays(p.start, n - 1))}</span>
@@ -138,10 +141,10 @@
             {isCurrent ? 'This cutoff' : 'Cutoff'} · {formatDayRange(cutoff.payday, cutoff.end)}
           </h2>
           <div class="steps">
-            <button type="button" class="step" aria-label="Previous cutoff" disabled={idx === 0} onclick={() => step(-1)}>
+            <button type="button" class="step" aria-label="Previous cutoff" aria-disabled={idx === 0} class:off={idx === 0} onclick={() => step(-1)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7l7 7" /></svg>
             </button>
-            <button type="button" class="step" aria-label="Next cutoff" disabled={isLast} onclick={() => step(1)}>
+            <button type="button" class="step" aria-label="Next cutoff" aria-disabled={isLast} class:off={isLast} onclick={() => step(1)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7l-7 7" /></svg>
             </button>
           </div>
@@ -245,10 +248,14 @@
     position: relative;
     margin: 0;
   }
+  .plot {
+    position: relative;
+    height: 56px;
+  }
   .spark svg {
     display: block;
     width: 100%;
-    height: 56px;
+    height: 100%;
     overflow: visible;
   }
   .band {
@@ -313,10 +320,10 @@
     color: var(--text);
     cursor: pointer;
   }
-  .step:hover:not(:disabled) {
+  .step:hover:not(.off) {
     background: var(--surface-2);
   }
-  .step:disabled {
+  .step.off {
     color: var(--muted);
     cursor: default;
   }
