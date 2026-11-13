@@ -93,6 +93,46 @@
       "paidFrom": null
     },
     {
+      "id": "baon-pamasahe",
+      "name": "Baon & pamasahe",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "2500",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "kinsenas",
+          "second": "thirtieth"
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "padala-sa-ginikanan",
+      "name": "Padala sa ginikanan",
+      "kind": {
+        "type": "bill"
+      },
+      "amount": "3000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2026-11-01",
+        "end": null,
+        "every": {
+          "type": "monthly",
+          "day": 16
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": "GCash"
+    },
+    {
       "id": "davao-light",
       "name": "Davao Light",
       "kind": {
@@ -264,7 +304,7 @@
         "members": 10,
         "myTurn": 10
       },
-      "amount": "2000",
+      "amount": "1000",
       "currency": "PHP",
       "schedule": {
         "start": "2026-08-15",
@@ -285,10 +325,30 @@
         "type": "oneOff",
         "direction": "out"
       },
-      "amount": "15000",
+      "amount": "17000",
       "currency": "PHP",
       "schedule": {
         "start": "2026-12-20",
+        "end": null,
+        "every": {
+          "type": "once"
+        }
+      },
+      "businessDay": "none",
+      "included": true,
+      "paidFrom": null
+    },
+    {
+      "id": "tuition",
+      "name": "Tuition",
+      "kind": {
+        "type": "oneOff",
+        "direction": "out"
+      },
+      "amount": "12000",
+      "currency": "PHP",
+      "schedule": {
+        "start": "2027-01-30",
         "end": null,
         "every": {
           "type": "once"

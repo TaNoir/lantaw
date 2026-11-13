@@ -10,9 +10,10 @@
 // Scrubbing only changes `selectedDay`; it never recomputes.
 
 import { EngineError, initEngine, project } from './engine';
-import type { FxRate, Input, Item, Projection } from './engine-types';
+import type { EngineEvent, FxRate, Input, Item, Projection } from './engine-types';
 import {
   DEFAULT_SETTINGS,
+  clearAll,
   db,
   deleteItem as dbDeleteItem,
   getSettings,
@@ -24,7 +25,7 @@ import {
   type StoredItem,
 } from './db';
 import { getCachedRate, getRate, holidayDates, holidayDatesCached, setManualRate } from './apis';
-import { buildInput, todayLocal } from './input';
+import { buildInput, dueOnAsOf, todayLocal } from './input';
 import { rebaseSample } from './items';
 import { daysBetween, yearOf } from './dates';
 
@@ -77,6 +78,8 @@ class AppState {
   /** Why `status` is 'failed'. */
   failure = $state<'engine' | 'storage' | null>(null);
   today = $state(todayLocal());
+  /** Settings and items have been read from storage (so `onboarded` is known). */
+  storedLoaded = $state(false);
 
   #engineReady = false;
   #holidays: string[] = [];
@@ -87,6 +90,8 @@ class AppState {
   #holidayTried = new Map<string, number>();
   #fxTried = new Map<string, number>();
   #seq = 0;
+  /** The running load(); first-run actions wait for it before writing. */
+  #loading: Promise<void> = Promise.resolve();
 
   /** Day index of today in the current projection, clamped into range. */
   get todayIndex(): number {
@@ -95,9 +100,33 @@ class AppState {
     return clamp(daysBetween(p.start, this.today), 0, p.days.length - 1);
   }
 
-  async load(): Promise<void> {
+  /**
+   * What to show: first run while the user hasn't finished onboarding (whatever
+   * the hash says), otherwise the hash route. `#/first-run` after onboarding
+   * is just the Timeline.
+   */
+  get view(): Route {
+    if (this.showFirstRun) return 'first-run';
+    return this.route === 'first-run' ? 'timeline' : this.route;
+  }
+
+  /** First run, once storage says the user isn't onboarded (never while it failed to start). */
+  get showFirstRun(): boolean {
+    return this.storedLoaded && this.status !== 'failed' && !this.settings.onboarded;
+  }
+
+  load(): Promise<void> {
+    this.#loading = this.#load();
+    return this.#loading;
+  }
+
+  async #load(): Promise<void> {
     this.status = 'loading';
     this.today = todayLocal();
+    // Read storage while the engine loads, so first run (or the forecast
+    // shell) is known without waiting for the WASM.
+    const stored = this.#loadStored();
+    stored.catch(() => {}); // handled below; avoids an unhandled rejection if the engine fails first
     try {
       await initEngine();
       this.#engineReady = true;
@@ -109,7 +138,7 @@ class AppState {
     }
 
     try {
-      await this.#loadStored();
+      await stored;
       await this.#sync();
     } catch (e) {
       this.error = new EngineError('INTERNAL', `storage unavailable: ${e instanceof Error ? e.message : String(e)}`);
@@ -126,13 +155,7 @@ class AppState {
     if (import.meta.env.DEV) {
       // DEV ONLY: `?demo` seeds the sample budget once, for checking by hand.
       if (new URLSearchParams(location.search).has('demo')) {
-        if ((await db.items.count()) === 0) {
-          const sample = (await import('./sample/sample-budget.json')).default as unknown as Input;
-          const { settings, items } = rebaseSample(sample, this.today);
-          await dbSaveSettings(settings);
-          await db.items.bulkPut(items);
-          for (const r of sample.fx) await setManualRate(r.currency, r.phpPerUnit, r.asOf);
-        }
+        if ((await db.items.count()) === 0) await this.#writeSample();
         const url = new URL(location.href);
         url.searchParams.delete('demo');
         history.replaceState(null, '', url);
@@ -143,6 +166,26 @@ class AppState {
     // Stored values win; fields added in later versions get their defaults.
     this.settings = { ...DEFAULT_SETTINGS(this.today), ...stored };
     this.items = [...items].sort(byCreated);
+    this.storedLoaded = true;
+  }
+
+  /**
+   * Replaces whatever is stored with the sample budget moved to today. The
+   * sample's USD rate is cached only when there's no rate yet, so a fetched
+   * rate is never overwritten.
+   */
+  async #writeSample(): Promise<{ settings: AppSettings; items: StoredItem[] }> {
+    const sample = (await import('./sample/sample-budget.json')).default as unknown as Input;
+    const { settings, items } = rebaseSample(sample, this.today);
+    await db.transaction('rw', db.items, db.settings, async () => {
+      await db.items.clear();
+      await dbSaveSettings(settings);
+      await db.items.bulkPut(items);
+    });
+    for (const r of sample.fx) {
+      if (!(await getCachedRate(r.currency))) await setManualRate(r.currency, r.phpPerUnit, r.asOf);
+    }
+    return { settings, items };
   }
 
   /**
@@ -206,6 +249,73 @@ class AppState {
   async saveManualRate(currency: string, phpPerUnit: string): Promise<void> {
     await setManualRate(currency, phpPerUnit, this.today);
     await this.#sync();
+  }
+
+  // ---- first run and the sample budget ----
+
+  /** "Try a sample budget": stores the sample (marked `isSample`) and shows its forecast. */
+  async loadSample(): Promise<void> {
+    await this.#loading;
+    const { settings, items } = await this.#writeSample();
+    this.settings = settings;
+    this.items = [...items].sort(byCreated);
+    await this.#sync();
+    this.selectedDay = this.todayIndex;
+  }
+
+  /** "Clear" on the sample banner: erases everything on the device, back to first run. */
+  async clearSample(): Promise<void> {
+    await clearAll();
+    this.settings = DEFAULT_SETTINGS(this.today);
+    this.items = [];
+    this.projection = null;
+    this.selectedDay = 0;
+    // The caches went too: read holidays and rates afresh.
+    this.#holidayKey = '';
+    this.#holidayTried.clear();
+    this.#fxTried.clear();
+    await this.#sync();
+  }
+
+  /**
+   * Finishes first run: writes the sweldo items, then the settings with
+   * `onboarded` set (which swaps first run for the forecast), and asks the
+   * browser to keep the data.
+   */
+  async finishFirstRun(patch: Partial<AppSettings>, items: StoredItem[]): Promise<void> {
+    await this.#loading;
+    for (const item of items) await putItem(item);
+    const next: AppSettings = { ...this.settings, ...patch, onboarded: true, isSample: false };
+    await dbSaveSettings(next);
+    this.items = [...(await listItems())].sort(byCreated);
+    this.settings = next;
+    void requestPersist();
+    await this.#sync();
+    this.selectedDay = this.todayIndex;
+  }
+
+  /**
+   * Events dated on `settings.balanceAsOf` for the "Already in your balance?"
+   * checklist, for settings and items that may not be saved yet. Uses cached
+   * or bundled holidays and cached rates only; a foreign-currency item with no
+   * rate yet is left off the list rather than failing it.
+   */
+  async dueOnAsOfFor(settings: AppSettings, items: StoredItem[]): Promise<EngineEvent[]> {
+    await this.#loading;
+    if (!this.#engineReady) return [];
+    const holidays = await holidayDatesCached(settings, horizonYears(settings));
+    const fx: FxRate[] = [];
+    for (const cur of currenciesOf(items)) {
+      const rate = await getCachedRate(cur);
+      if (rate) fx.push(rate);
+    }
+    const known = new Set(['PHP', ...fx.map((r) => r.currency.toUpperCase())]);
+    const usable = items.filter((i) => known.has(i.currency.toUpperCase()));
+    try {
+      return dueOnAsOf(buildInput(settings, usable, holidays, fx, this.today));
+    } catch {
+      return [];
+    }
   }
 
   // ---- routing (hash based: #/timeline, #/items, ...) ----

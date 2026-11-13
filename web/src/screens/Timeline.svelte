@@ -91,6 +91,21 @@
   // ---- banners ----
   const stale = $derived(isBalanceStale(s.balanceAsOf, app.today));
 
+  let clearing = $state(false);
+  let clearFailed = $state(false);
+  async function clearSample() {
+    if (clearing) return;
+    clearing = true;
+    clearFailed = false;
+    try {
+      await app.clearSample();
+    } catch {
+      clearFailed = true;
+    } finally {
+      clearing = false;
+    }
+  }
+
   let rateRaw = $state('');
   let rateError = $state('');
   let savingRate = $state(false);
@@ -169,6 +184,28 @@
 {:else}
   <div class="timeline">
     <div class="main-col">
+      {#if s.isSample}
+        <section class="banner sample" aria-labelledby="sample-h">
+          <p>
+            <strong id="sample-h">Sample budget</strong> · A made-up Davao budget to play with. Clear it when you’re
+            ready to add your own.
+          </p>
+          <button
+            type="button"
+            class="btn ghost"
+            aria-label="Clear sample budget"
+            onclick={clearSample}
+            disabled={clearing}
+            aria-busy={clearing || undefined}
+          >
+            Clear
+          </button>
+          {#if clearFailed}
+            <p class="field-error" role="alert">Couldn’t clear the sample on this device. Try again.</p>
+          {/if}
+        </section>
+      {/if}
+
       {#if app.missingRate}
         <section class="banner warn" aria-labelledby="fx-h">
           <h2 id="fx-h" class="banner-title">Lantaw needs a {app.missingRate} rate</h2>
@@ -504,6 +541,13 @@
   }
   .banner.warn p {
     margin: 4px 0 12px;
+  }
+  .banner.sample {
+    background: color-mix(in srgb, var(--teal) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--teal) 45%, transparent);
+  }
+  .banner.sample .btn:disabled {
+    cursor: progress;
   }
   .banner.danger {
     background: color-mix(in srgb, var(--coral) 9%, var(--surface));
