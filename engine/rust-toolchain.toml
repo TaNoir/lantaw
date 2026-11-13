@@ -1,0 +1,6 @@
+# Pins the toolchain for local builds and Vercel (vercel-build.sh): stable Rust
+# with the WASM target, minimal profile.
+[toolchain]
+channel = "stable"
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

@@ -35,6 +35,8 @@ else
       echo "==> Prebuilt installer failed; building wasm-pack from source"
       cargo install wasm-pack --locked
     fi
+    # The installer can exit 0 without leaving wasm-pack on PATH: build it then.
+    command -v wasm-pack >/dev/null || cargo install wasm-pack --locked
   fi
 fi
 
@@ -47,7 +49,9 @@ npm --version
 
 echo "==> Building engine (WASM) and web app"
 cd web
-npm ci
+# Vercel sets NODE_ENV=production, which would skip the devDependencies the
+# build needs (vite, svelte, the PWA plugin).
+npm ci --include=dev
 npm run build
 
 echo "==> Done: web/dist"
