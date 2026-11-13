@@ -12,12 +12,15 @@
     what,
     onadd,
     resetKey,
+    note = null,
   }: {
     /** The option being added, for the accessible names ("Cash today"). */
     what: string;
     onadd: (included: boolean) => Promise<string | null>;
     /** When this changes (a new comparison) the panel closes and the "Added" note clears. */
     resetKey: string;
+    /** Shown in the panel and after adding, e.g. the plan total when rounding moves it off the price. */
+    note?: string | null;
   } = $props();
 
   const id = `atp-${++seq}`;
@@ -86,7 +89,7 @@
       bind:this={openBtn}
       aria-expanded="false"
       aria-controls={id}
-      aria-label="Add {what} to your plan"
+      aria-label="Add to plan: {what}"
       onclick={open}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14 M5 12h14" /></svg>
@@ -98,6 +101,7 @@
       <span>
         {addedAs === 'real' ? 'Added to your plan' : 'Added as a what-if'} —
         <a href="#/timeline">see it on the Timeline</a>
+        {#if note}<span class="note">{note}</span>{/if}
       </span>
     </p>
   {:else}
@@ -120,6 +124,7 @@
           <span class="c-note">A dashed line on the Timeline, not counted</span>
         </button>
       </div>
+      {#if note}<p class="note panel-note">{note}</p>{/if}
       {#if error}
         <p class="err" role="alert">{error}</p>
       {/if}
@@ -238,6 +243,21 @@
     font-size: 0.875rem;
     color: var(--muted);
     line-height: 1.35;
+  }
+  .note {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .panel-note {
+    margin: 8px 0 0;
+  }
+  /* On the teal "Added" tint, body colour keeps AA contrast in the light theme. */
+  .done .note {
+    color: var(--text);
+    font-weight: 500;
   }
   .err {
     margin: 8px 0 0;

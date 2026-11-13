@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { OptionResult } from '../lib/engine-types';
-  import { belowLine, verdictLabel } from '../lib/kaya';
+  import { belowLine, planTotalNote, verdictLabel } from '../lib/kaya';
   import { formatPeso } from '../lib/money';
   import { formatShort } from '../lib/dates';
   import AddToPlan from './AddToPlan.svelte';
@@ -22,7 +22,7 @@
     bufferCentavos: number;
     /** Dates in this year drop the year ("Feb 28"). */
     refYear: number;
-    /** The first card when there are several: marked "Best of these". */
+    /** The first card when there are several and it isn't Hindi kaya: marked "Best of these". */
     best?: boolean;
     /** Installments: the date of the first monthly payment. */
     firstPayment?: string | null;
@@ -32,6 +32,9 @@
 
   const low = $derived(result.lowest.centavos < bufferCentavos);
   const months = $derived(result.option.type === 'installment' ? result.option.months : 0);
+  const note = $derived(
+    result.monthlyCentavos === null ? null : planTotalNote(result.monthlyCentavos, months, result.totalPaidCentavos),
+  );
 </script>
 
 <article class="card {result.verdict}" class:best aria-label="{title}: {verdictLabel(result.verdict)}">
@@ -76,7 +79,7 @@
   </dl>
   <p class="below" class:low={result.daysBelowBuffer > 0}>{belowLine(result, bufferCentavos)}</p>
 
-  <AddToPlan what={title} {onadd} {resetKey} />
+  <AddToPlan what={title} {onadd} {resetKey} {note} />
 </article>
 
 <style>

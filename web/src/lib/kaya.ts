@@ -47,6 +47,11 @@ export interface PurchaseCheck {
   errors: { price?: string; date?: string; rows: Record<number, RowErrors> };
 }
 
+/** A blank form on `today` (after a purchase is added to the plan as a real item). */
+export function emptyForm(today: string): KayaForm {
+  return { name: '', price: '', date: today, rows: [] };
+}
+
 export function dateWindow(p: Projection, today: string, horizonMonths: number): DateWindow {
   return {
     today,
@@ -156,6 +161,20 @@ export function bestReason(reason: string | null, bufferCentavos: number): strin
 }
 
 // ---------------------------------------------------------------- add to plan
+
+/**
+ * A saved installment has one amount, so `months` × the rounded monthly can
+ * miss the engine's plan total (the price, for 0%) by a few centavos. Says so
+ * ("6 × ₱4,831.67 = ₱28,990.02 (₱0.02 more than the price because of
+ * rounding)"); null when it adds up exactly. Integer centavos only.
+ */
+export function planTotalNote(monthlyCentavos: number, months: number, totalPaidCentavos: number): string | null {
+  const total = monthlyCentavos * months;
+  const diff = total - totalPaidCentavos;
+  if (diff === 0) return null;
+  const how = diff > 0 ? 'more' : 'less';
+  return `${months} × ${formatPeso(monthlyCentavos)} = ${formatPeso(total)} (${formatPeso(Math.abs(diff))} ${how} than the price because of rounding)`;
+}
 
 /**
  * The item draft for "Add to plan" (check it with `validateItem`):

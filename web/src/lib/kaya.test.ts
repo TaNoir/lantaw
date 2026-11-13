@@ -8,6 +8,8 @@ import {
   bestReason,
   buildPurchase,
   dateWindow,
+  emptyForm,
+  planTotalNote,
   optionKey,
   optionTitle,
   planDraft,
@@ -324,5 +326,29 @@ describe('the sample aircon (Task 17 hand check)', () => {
     const low = Math.min(...withItem.days);
     // Same low point, give or take the 0% rounding remainder (≤ 5 centavos here).
     expect(Math.abs(low - inst.lowest.centavos)).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('emptyForm', () => {
+  it('is a blank purchase on today, with no installment rows', () => {
+    expect(emptyForm('2026-11-20')).toEqual({ name: '', price: '', date: '2026-11-20', rows: [] });
+  });
+});
+
+describe('planTotalNote', () => {
+  it('discloses a 0% plan whose rounded monthly does not add up to the price', () => {
+    expect(planTotalNote(483167, 6, 2899000)).toBe(
+      '6 × ₱4,831.67 = ₱28,990.02 (₱0.02 more than the price because of rounding)',
+    );
+    // 10,000 / 3 -> 3,333.33 × 3 = 9,999.99
+    expect(planTotalNote(333333, 3, 1000000)).toBe(
+      '3 × ₱3,333.33 = ₱9,999.99 (₱0.01 less than the price because of rounding)',
+    );
+  });
+
+  it('says nothing when the payments add up exactly', () => {
+    expect(planTotalNote(400000, 3, 1200000)).toBeNull();
+    // A quoted monthly: the engine total is months × monthly, so no drift.
+    expect(planTotalNote(289900, 12, 3478800)).toBeNull();
   });
 });

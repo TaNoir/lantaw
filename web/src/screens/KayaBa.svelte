@@ -5,6 +5,12 @@
   // and back keeps what was typed. A reload starts fresh.
   const form = $state<KayaForm>({ name: '', price: '', date: '', rows: [] });
   let rowSeq = 0;
+  /**
+   * After "Add to plan" as a real item the form is cleared (the purchase is in
+   * the forecast now, so comparing it again would count it twice). This note
+   * stays until the next edit. `snap` is the cleared form.
+   */
+  let added = $state<{ name: string; note: string | null; snap: string } | null>(null);
 </script>
 
 <script lang="ts">
@@ -20,6 +26,8 @@
     bestReason,
     buildPurchase,
     dateWindow,
+    emptyForm,
+    planTotalNote,
     optionKey,
     optionTitle,
     planDraft,
@@ -116,7 +124,20 @@
     if (form.name.trim() !== '') nameMissing = false;
   });
 
-  async function add(option: PayOption, date: string, monthlyCentavos: number | null, included: boolean) {
+  // The "Added" note goes away on the next edit.
+  $effect(() => {
+    const snap = JSON.stringify(form);
+    if (added && snap !== added.snap) added = null;
+  });
+  let addedEl: HTMLElement | undefined = $state();
+
+  async function add(
+    option: PayOption,
+    date: string,
+    monthlyCentavos: number | null,
+    note: string | null,
+    included: boolean,
+  ): Promise<string | null> {
     const s = shown;
     if (!s) return 'Lantaw is still comparing. Try again in a moment.';
     const v = validateItem(
@@ -144,6 +165,13 @@
     } catch (e) {
       hold = null;
       throw e;
+    }
+    if (included) {
+      // A real item is part of the baseline now: start a fresh purchase.
+      Object.assign(form, emptyForm(app.today));
+      added = { name: v.item.name, note, snap: JSON.stringify(form) };
+      await tick();
+      addedEl?.focus();
     }
     return null;
   }
@@ -294,6 +322,16 @@
         <section class="results" aria-labelledby="kb-results-h">
           <h2 id="kb-results-h" class="sr-only">Results</h2>
 
+          {#if added}
+            <p class="added" role="status" tabindex="-1" bind:this={addedEl}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+              <span>
+                Added “{added.name}” to your plan — <a href="#/timeline">see it on the Timeline</a>
+                {#if added.note}<span class="added-note">{added.note}</span>{/if}
+              </span>
+            </p>
+          {/if}
+
           {#if forecastOver}
             <div class="card notice">
               <h3>Your forecast has run out</h3>
@@ -352,7 +390,7 @@
                 <AddToPlan
                   what="cash on {when}"
                   resetKey={s.key}
-                  onadd={(inc) => add({ type: 'cash' }, b.date, null, inc)}
+                  onadd={(inc) => add({ type: 'cash' }, b.date, null, null, inc)}
                 />
               </article>
             {:else}
@@ -373,10 +411,19 @@
                   title={optionTitle(r, s.purchase.date, app.today)}
                   bufferCentavos={buffer}
                   {refYear}
-                  best={n === 0 && c.options.length > 1}
+                  best={n === 0 && c.options.length > 1 && r.verdict !== 'hindiKaya'}
                   firstPayment={r.option.type === 'installment' ? shiftMonths(s.purchase.date, 1) : null}
                   resetKey={s.key}
-                  onadd={(inc) => add(r.option, s.purchase.date, r.monthlyCentavos, inc)}
+                  onadd={(inc) =>
+                    add(
+                      r.option,
+                      s.purchase.date,
+                      r.monthlyCentavos,
+                      r.monthlyCentavos === null
+                        ? null
+                        : planTotalNote(r.monthlyCentavos, r.option.type === 'installment' ? r.option.months : 0, r.totalPaidCentavos),
+                      inc,
+                    )}
                 />
               {/each}
             </div>
@@ -708,6 +755,47 @@
     align-items: baseline;
     flex-wrap: wrap;
     gap: 4px 8px;
+  }
+
+  .added {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--teal) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+  .added:focus {
+    outline: none;
+  }
+  .added:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+  }
+  .added svg {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    fill: none;
+    stroke: var(--teal-text);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .added a {
+    color: var(--teal-text);
+    font-weight: 800;
+  }
+  .added-note {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
   .summary {
