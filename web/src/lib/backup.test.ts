@@ -12,6 +12,9 @@ import { decryptBackup, initEngineSync } from './engine';
 import { DEFAULT_SETTINGS, type StoredItem } from './db';
 import {
   BackupImportError,
+  DEFAULT_KDF,
+  IMPORT_MESSAGES,
+  KDF_LIMITS,
   backupFilename,
   exportBackup,
   importBackup,
@@ -153,10 +156,14 @@ describe('exportBackup / importBackup', () => {
 describe('importBackup KDF clamp: crafted params never reach the engine', () => {
   const cases: [string, (f: BackupFile) => void][] = [
     ['m too large (1 GiB)', (f) => (f.kdf.m = 1_048_576)],
+    ['m just over 64 MiB', (f) => (f.kdf.m = 65_537)],
+    ['m × t just over the budget (38913 × 4)', (f) => Object.assign(f.kdf, { m: 38_913, t: 4 })],
+    ['m × t over the budget (65536 × 3)', (f) => Object.assign(f.kdf, { m: 65_536, t: 3 })],
+    ['the old ceiling (256 MiB, t 10, p 4)', (f) => Object.assign(f.kdf, { m: 262_144, t: 10, p: 4 })],
     ['m too small', (f) => (f.kdf.m = 4)],
     ['m below 8 × p', (f) => Object.assign(f.kdf, { m: 16, p: 4 })],
     ['m not an integer', (f) => (f.kdf.m = 64.5)],
-    ['t too large', (f) => (f.kdf.t = 11)],
+    ['t too large', (f) => (f.kdf.t = 5)],
     ['t zero', (f) => (f.kdf.t = 0)],
     ['p too large', (f) => (f.kdf.p = 5)],
     ['t as a string', (f) => ((f.kdf as unknown as { t: string }).t = '1')],
@@ -183,11 +190,121 @@ describe('importBackup KDF clamp: crafted params never reach the engine', () => 
     expect(decryptBackup).toHaveBeenCalledTimes(1);
   });
 
-  it('a decrypted payload that is not { settings, items } gives NOT_LANTAW', async () => {
+  it('accepts the ceilings: m 65536 with t 2, and m × t exactly 155648 (38912 × 4, p 4)', async () => {
+    for (const kdf of [{ m: 65_536, t: 2, p: 1 }, { m: 38_912, t: 4, p: 4 }]) {
+      const { blob } = await exportBackup(data(), 'pw-pw-pw-pw', kdf);
+      expect(await importBackup(await blob.text(), 'pw-pw-pw-pw')).toEqual(data());
+    }
+    expect(decryptBackup).toHaveBeenCalledTimes(2);
+  });
+
+  it('KDF_LIMITS match the ruling (work budget is 4× the default)', () => {
+    expect(KDF_LIMITS).toEqual({ m: [8, 65_536], t: [1, 4], p: [1, 4], work: 155_648 });
+    expect(KDF_LIMITS.work).toBe(4 * DEFAULT_KDF.m * DEFAULT_KDF.t);
+  });
+});
+
+describe('importBackup: a correctly decrypted but damaged payload', () => {
+  const withItems = (items: unknown[]) => ({ ...data(), items }) as unknown as BackupData;
+  const good = () => item('ok', 1) as unknown as Record<string, unknown>;
+
+  it('not { settings, items } gives DAMAGED', async () => {
     const bad = { settings: 'nope', items: [] } as unknown as BackupData;
-    expect(await codeOf(importBackup(await fileText(bad), 'correct horse'))).toBe('NOT_LANTAW');
-    const badItem = { ...data(), items: [{ id: 5 }] } as unknown as BackupData;
-    expect(await codeOf(importBackup(await fileText(badItem), 'correct horse'))).toBe('NOT_LANTAW');
+    expect(await codeOf(importBackup(await fileText(bad), 'correct horse'))).toBe('DAMAGED');
+    expect(await codeOf(importBackup(await fileText(withItems([{ id: 5 }])), 'correct horse'))).toBe('DAMAGED');
+  });
+
+  const broken: [string, () => unknown][] = [
+    ['amount "abc"', () => ({ ...good(), amount: 'abc' })],
+    ['a negative amount', () => ({ ...good(), amount: '-5' })],
+    ['kind.type "whatever"', () => ({ ...good(), kind: { type: 'whatever' } })],
+    ['schedule.every {}', () => ({ ...good(), schedule: { start: '2026-11-15', end: null, every: {} } })],
+    ['a start that is not a date', () => ({ ...good(), schedule: { start: 'soon', end: null, every: { type: 'once' } } })],
+    ['monthly day 40', () => ({ ...good(), schedule: { start: '2026-11-15', end: null, every: { type: 'monthly', day: 40 } } })],
+    ['an installment of 0 payments', () => ({ ...good(), kind: { type: 'installment', totalPayments: 0, paidOverride: null } })],
+    ['a name that is a number', () => ({ ...good(), name: 42 })],
+    ['a blank name', () => ({ ...good(), name: '   ' })],
+    ['currency "usd!"', () => ({ ...good(), currency: 'usd!' })],
+    ['a business-day rule "sometimes"', () => ({ ...good(), businessDay: 'sometimes' })],
+    ['updatedAt missing', () => ({ ...good(), updatedAt: undefined })],
+  ];
+  for (const [name, make] of broken) {
+    it(`an item with ${name} rejects the whole import as DAMAGED`, async () => {
+      const text = await fileText(withItems([item('fine', 1), make()]));
+      expect(await codeOf(importBackup(text, 'correct horse'))).toBe('DAMAGED');
+    });
+  }
+
+  it('duplicate item ids give DAMAGED', async () => {
+    const text = await fileText(withItems([item('same', 1), item('same', 2)]));
+    expect(await codeOf(importBackup(text, 'correct horse'))).toBe('DAMAGED');
+  });
+
+  it('valid items keep their id and timestamps; amounts are normalised', async () => {
+    const kept = { ...item('kept', 7, { amount: '1,250.5' }), createdAt: 3 };
+    const out = await importBackup(await fileText(withItems([kept])), 'correct horse');
+    expect(out.items[0]).toMatchObject({ id: 'kept', createdAt: 3, updatedAt: 7, amount: '1250.50' });
+  });
+
+  it('the copy for DAMAGED and WRONG_PASSPHRASE', () => {
+    expect(IMPORT_MESSAGES.DAMAGED).toBe('This backup is damaged and can’t be restored.');
+    expect(IMPORT_MESSAGES.WRONG_PASSPHRASE).toBe('That password doesn’t open this backup, or the file is damaged.');
+  });
+});
+
+describe('importBackup: wrong settings fields fall back to defaults', () => {
+  const replaceWith = (out: BackupData) =>
+    prepareImport('replace', { settings: DEFAULT_SETTINGS('2026-11-13'), items: [] }, out, '2026-11-13').settings;
+
+  it('drops bad fields and keeps good ones; Replace fills the defaults', async () => {
+    const settings = {
+      ...data().settings,
+      balance: 'abc',
+      safetyBuffer: '-5',
+      cardFxFeePct: '12',
+      balanceAsOf: '2026-02-30',
+      horizonMonths: 36,
+      theme: 'blue',
+      davaoHolidays: 'yes',
+      paidOnAsOf: [1, 2],
+      customHolidays: ['2026-12-08', 'nope', '2026-12-08', '2026-11-30'],
+      holidayNames: { '2026-12-08': 'Feast', '2027-01-01': 'not listed', '2026-11-30': 7 },
+      extra: 'ignored',
+    };
+    const out = await importBackup(await fileText({ ...data(), settings } as unknown as BackupData), 'correct horse');
+    const s = replaceWith(out);
+    const d = DEFAULT_SETTINGS('2026-11-13');
+    expect(s.balance).toBe(d.balance);
+    expect(s.safetyBuffer).toBe(d.safetyBuffer);
+    expect(s.cardFxFeePct).toBe(d.cardFxFeePct);
+    expect(s.balanceAsOf).toBe('2026-11-13');
+    expect(s.horizonMonths).toBe(12);
+    expect(s.theme).toBe('system');
+    expect(s.davaoHolidays).toBe(true);
+    expect(s.paidOnAsOf).toEqual([]);
+    expect(s.customHolidays).toEqual(['2026-11-30', '2026-12-08']);
+    expect(s.holidayNames).toEqual({ '2026-12-08': 'Feast' });
+    expect('extra' in s).toBe(false);
+  });
+
+  it('a "__proto__" key in holidayNames never touches a prototype', async () => {
+    const settings = JSON.parse(
+      JSON.stringify(data().settings).replace(
+        '"holidayNames":{}',
+        '"holidayNames":{"__proto__":{"polluted":1},"2026-12-08":"Feast"}',
+      ),
+    );
+    const out = await importBackup(await fileText({ ...data(), settings }), 'correct horse');
+    const s = replaceWith(out);
+    expect(s.holidayNames).toEqual({ '2026-12-08': 'Feast' });
+    expect(Object.getPrototypeOf(s.holidayNames)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it('good amount strings come back exactly as exported', async () => {
+    const settings = { ...data().settings, safetyBuffer: '3000', cardFxFeePct: '2.5', balance: '0.5' };
+    const out = await importBackup(await fileText({ ...data(), settings }), 'correct horse');
+    expect(out.settings).toMatchObject({ safetyBuffer: '3000', cardFxFeePct: '2.5', balance: '0.5' });
   });
 });
 
@@ -273,6 +390,24 @@ describe('mergeSettings and prepareImport', () => {
     );
     expect(out.settings).toEqual(localSettings);
     expect(out.items.map((i) => i.id).sort()).toEqual(['a', 'b']);
+  });
+
+  it('any import clears isSample (Replace from a sample backup, Merge into a sample)', () => {
+    const sampleSettings = { ...DEFAULT_SETTINGS('2026-11-13'), isSample: true, onboarded: true };
+    const replaced = prepareImport(
+      'replace',
+      { settings: DEFAULT_SETTINGS('2026-11-13'), items: [] },
+      { settings: sampleSettings, items: [] },
+      '2026-11-13',
+    );
+    expect(replaced.settings.isSample).toBe(false);
+    const merged = prepareImport(
+      'merge',
+      { settings: sampleSettings, items: [] },
+      { settings: data().settings, items: [] },
+      '2026-11-13',
+    );
+    expect(merged.settings.isSample).toBe(false);
   });
 });
 

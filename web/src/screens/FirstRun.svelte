@@ -1,6 +1,6 @@
 <script lang="ts">
   // First run: intro -> balance -> sweldo -> quick add -> (Already in your
-  // balance?) -> Timeline. Everything typed stays in memory until the end;
+  // balance?) -> Timeline. Or intro -> restore a backup -> Timeline. Everything typed stays in memory until the end;
   // only items added from the quick-add chips are saved along the way (the
   // ItemEditor saves them itself).
   import { tick } from 'svelte';
@@ -8,6 +8,7 @@
   import Toggle from '../components/Toggle.svelte';
   import ItemEditor from '../components/ItemEditor.svelte';
   import AlreadyInBalance from '../components/AlreadyInBalance.svelte';
+  import RestoreBackup from '../components/RestoreBackup.svelte';
   import { app } from '../lib/state.svelte';
   import type { EngineEvent } from '../lib/engine-types';
   import type { StoredItem } from '../lib/db';
@@ -28,7 +29,7 @@
     type SweldoForm,
   } from '../lib/onboarding';
 
-  type Step = 'intro' | 'balance' | 'sweldo' | 'quick' | 'check';
+  type Step = 'intro' | 'restore' | 'balance' | 'sweldo' | 'quick' | 'check';
   const NUMBERED: Partial<Record<Step, number>> = { balance: 1, sweldo: 2, quick: 3 };
 
   let step = $state<Step>('intro');
@@ -335,7 +336,18 @@
             <button type="button" class="btn ghost" onclick={trySample} disabled={busy !== null} aria-busy={busy === 'sample' || undefined}>
               {busy === 'sample' ? 'Loading the sample…' : 'Try a sample budget'}
             </button>
+            <button type="button" class="btn text" onclick={() => go('restore')} disabled={busy !== null}>
+              Restore from a backup
+            </button>
             <p class="fine">Lantaw is Bisaya for “to look out into the distance.”</p>
+          </div>
+        {:else if step === 'restore'}
+          {@render topbar('intro')}
+          <div class="body">
+            <h1 id="fr-title" tabindex="-1">Restore from a backup</h1>
+            <p class="lede">Moving from another phone or browser? Open the backup you exported there.</p>
+            <!-- On success the app is onboarded, so first run closes and the Timeline shows. -->
+            <RestoreBackup idPrefix="fr-imp" replaceOnly onclose={() => go('intro')} ondone={() => {}} />
           </div>
         {:else if step === 'balance'}
           {@render topbar('intro')}

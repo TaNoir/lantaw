@@ -8,7 +8,9 @@
 
 import { DEFAULT_SETTINGS, toPlain, type AppSettings, type StoredItem } from './db';
 import { EngineError, decryptBackup, encryptBackup } from './engine';
-import { ensureMainSweldo, setMainSweldo } from './items';
+import { ensureMainSweldo, isIsoDate, setMainSweldo, validateItem } from './items';
+import { parseAmount, type ParseResult } from './money';
+import { parseFeePct } from './settings';
 
 export type BackupData = { settings: AppSettings; items: StoredItem[] };
 
@@ -27,10 +29,12 @@ export type BackupFile = {
 export const DEFAULT_KDF: Kdf = { m: 19456, t: 2, p: 1 };
 
 /**
- * What an imported file may ask for. Memory is in KiB (256 MiB at most);
- * Argon2 itself also needs m ≥ 8 × p. Anything outside is not a Lantaw file.
+ * What an imported file may ask for, so a crafted file can't stall a phone.
+ * Memory is in KiB (64 MiB at most), and the total work m × t is at most 4×
+ * the default (19456 × 2 × 4 = 155648). Argon2 itself also needs m ≥ 8 × p.
+ * Anything outside is not a Lantaw file.
  */
-export const KDF_LIMITS = { m: [8, 262_144], t: [1, 10], p: [1, 4] } as const;
+export const KDF_LIMITS = { m: [8, 65_536], t: [1, 4], p: [1, 4], work: 155_648 } as const;
 
 const FORMAT = 'lantaw-backup';
 const VERSION = 1;
@@ -39,7 +43,13 @@ const NONCE_BYTES = 12;
 /** Far above any real backup (a few hundred items is tens of KB); bigger files are refused unread. */
 export const MAX_FILE_CHARS = 20 * 1024 * 1024;
 
-export type BackupImportCode = 'NOT_LANTAW' | 'NEWER_VERSION' | 'WRONG_PASSPHRASE';
+/**
+ * NOT_LANTAW: not our file, or its envelope is broken or out of range.
+ * NEWER_VERSION: a later file format. WRONG_PASSPHRASE: the tag check failed
+ * (a wrong password or a tampered ciphertext; AES-GCM can't tell them apart).
+ * DAMAGED: it decrypted, but the data inside isn't valid Lantaw data.
+ */
+export type BackupImportCode = 'NOT_LANTAW' | 'NEWER_VERSION' | 'WRONG_PASSPHRASE' | 'DAMAGED';
 
 export class BackupImportError extends Error {
   code: BackupImportCode;
@@ -52,7 +62,8 @@ export class BackupImportError extends Error {
 
 /** What to show the user for each import error. */
 export const IMPORT_MESSAGES: Record<BackupImportCode, string> = {
-  WRONG_PASSPHRASE: 'That password doesn’t open this backup.',
+  WRONG_PASSPHRASE: 'That password doesn’t open this backup, or the file is damaged.',
+  DAMAGED: 'This backup is damaged and can’t be restored.',
   NOT_LANTAW: 'This file isn’t a Lantaw backup.',
   NEWER_VERSION: 'This backup is from a newer version of Lantaw. Update the app and try again.',
 };
@@ -155,7 +166,7 @@ function parseEnvelope(text: string): Parsed {
   if (!inRange(k.m, KDF_LIMITS.m) || !inRange(k.t, KDF_LIMITS.t) || !inRange(k.p, KDF_LIMITS.p)) {
     throw notLantaw('kdf params');
   }
-  if (k.m < 8 * k.p) throw notLantaw('kdf params');
+  if (k.m < 8 * k.p || k.m * k.t > KDF_LIMITS.work) throw notLantaw('kdf params');
 
   const salt = fromBase64(k.salt);
   const nonce = fromBase64(raw.nonce);
@@ -169,25 +180,28 @@ function parseEnvelope(text: string): Parsed {
 
 const isStr = (v: unknown): v is string => typeof v === 'string';
 
-/** Just enough shape for the app and the engine to work with; the engine validates the rest. */
-function isStoredItem(v: unknown): v is StoredItem {
+const damaged = (why: string) => new BackupImportError('DAMAGED', why);
+const BUSINESS_DAY = new Set(['none', 'previous', 'next']);
+
+/** The JSON types validateItem relies on (it would throw on, say, a numeric name). */
+function hasItemShape(v: unknown): v is Record<string, unknown> {
   if (!isObj(v)) return false;
-  const kind = v.kind;
   const sched = v.schedule;
   return (
     isStr(v.id) &&
-    v.id !== '' &&
+    v.id.trim() !== '' &&
     isStr(v.name) &&
-    isObj(kind) &&
-    isStr(kind.type) &&
+    isObj(v.kind) &&
     isStr(v.amount) &&
     isStr(v.currency) &&
     isObj(sched) &&
     isStr(sched.start) &&
+    (sched.end === null || sched.end === undefined || isStr(sched.end)) &&
     isObj(sched.every) &&
     isStr(v.businessDay) &&
+    BUSINESS_DAY.has(v.businessDay) &&
     typeof v.included === 'boolean' &&
-    (v.paidFrom === null || isStr(v.paidFrom)) &&
+    (v.paidFrom === null || v.paidFrom === undefined || isStr(v.paidFrom)) &&
     typeof v.createdAt === 'number' &&
     Number.isFinite(v.createdAt) &&
     typeof v.updatedAt === 'number' &&
@@ -195,25 +209,53 @@ function isStoredItem(v: unknown): v is StoredItem {
   );
 }
 
-/** The decrypted JSON as BackupData, or NOT_LANTAW. Settings are checked field by field later. */
+/**
+ * Every item goes through the editor's own validateItem (the same rules as
+ * typing it in), keeping its id and timestamps. One bad item or a repeated id
+ * rejects the whole backup: a partial restore would lose data silently.
+ */
+function restoredItems(raw: unknown[]): StoredItem[] {
+  const seen = new Set<string>();
+  return raw.map((v, n) => {
+    if (!hasItemShape(v)) throw damaged(`item ${n}: shape`);
+    const r = validateItem(v as Partial<StoredItem>);
+    if (!r.ok) throw damaged(`item ${n}: ${Object.keys(r.errors).join(', ')}`);
+    const item: StoredItem = {
+      ...r.item,
+      id: v.id as string,
+      createdAt: v.createdAt as number,
+      updatedAt: v.updatedAt as number,
+    };
+    if (seen.has(item.id)) throw damaged(`item ${n}: duplicate id`);
+    seen.add(item.id);
+    return item;
+  });
+}
+
+/**
+ * The decrypted JSON as BackupData, or DAMAGED. Items must all be valid;
+ * settings keep only the fields that are (see `validSettings`), so a bad
+ * optional field falls back to its default instead of failing the restore.
+ */
 function parsePayload(bytes: Uint8Array): BackupData {
   let raw: unknown;
   try {
     raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   } catch {
-    throw notLantaw('payload not JSON');
+    throw damaged('payload not JSON');
   }
-  if (!isObj(raw) || !isObj(raw.settings) || !Array.isArray(raw.items)) throw notLantaw('payload shape');
-  if (!raw.items.every(isStoredItem)) throw notLantaw('payload items');
-  // Settings fields are type-checked one by one in prepareImport (bad ones fall back).
-  return { settings: raw.settings as unknown as AppSettings, items: raw.items as StoredItem[] };
+  if (!isObj(raw) || !isObj(raw.settings) || !Array.isArray(raw.items)) throw damaged('payload shape');
+  const items = restoredItems(raw.items);
+  // Partial: missing or invalid fields are filled in by prepareImport.
+  return { settings: validSettings(raw.settings) as AppSettings, items };
 }
 
 /**
- * Opens a `.lantaw` file's text with `passphrase`. Throws BackupImportError:
- * NOT_LANTAW (not ours, damaged envelope, out-of-range KDF), NEWER_VERSION, or
- * WRONG_PASSPHRASE (which also covers a tampered ciphertext: GCM can't tell
- * the two apart). Never touches storage.
+ * Opens a `.lantaw` file's text with `passphrase` and validates everything
+ * inside. Throws BackupImportError: NOT_LANTAW (not ours, broken envelope,
+ * out-of-range KDF), NEWER_VERSION, WRONG_PASSPHRASE (also a tampered
+ * ciphertext: GCM can't tell the two apart) or DAMAGED (it decrypted, but an
+ * item is invalid). Never touches storage.
  */
 export async function importBackup(text: string, passphrase: string): Promise<BackupData> {
   const env = parseEnvelope(text);
@@ -248,29 +290,50 @@ export function mergeItems(local: StoredItem[], incoming: StoredItem[]): StoredI
   return mains.length > 1 ? setMainSweldo(merged, mains[0].id) : merged;
 }
 
-type Check = (v: unknown) => boolean;
-const strArray: Check = (v) => Array.isArray(v) && v.every(isStr);
-const SETTING_CHECKS: Record<keyof AppSettings, Check> = {
-  balance: isStr,
-  balanceAsOf: isStr,
-  safetyBuffer: isStr,
-  horizonMonths: (v) => v === 12 || v === 24,
-  cardFxFeePct: isStr,
-  paidOnAsOf: strArray,
-  davaoHolidays: (v) => typeof v === 'boolean',
-  customHolidays: strArray,
-  holidayNames: (v) => isObj(v) && Object.values(v).every(isStr),
-  theme: (v) => v === 'system' || v === 'dark' || v === 'light',
-  onboarded: (v) => typeof v === 'boolean',
-  isSample: (v) => typeof v === 'boolean',
+/** A valid amount, kept exactly as written when already canonical ("3000", "2.5"), else normalised. */
+function cleanMoney(v: unknown, parse: (raw: string) => ParseResult): string | undefined {
+  if (!isStr(v)) return undefined;
+  const r = parse(v);
+  if (!r.ok) return undefined;
+  return /^\d+(\.\d{1,2})?$/.test(v) ? v : r.value;
+}
+
+const HOLIDAY_NAME_MAX = 40;
+
+type Clean = (v: unknown) => unknown;
+const bool: Clean = (v) => (typeof v === 'boolean' ? v : undefined);
+
+/** Each settings field: its cleaned value, or undefined when it isn't valid (then the default is used). */
+const SETTING_CLEANERS: Record<keyof AppSettings, Clean> = {
+  balance: (v) => cleanMoney(v, parseAmount),
+  balanceAsOf: (v) => (isIsoDate(v) ? v : undefined),
+  safetyBuffer: (v) => cleanMoney(v, parseAmount),
+  horizonMonths: (v) => (v === 12 || v === 24 ? v : undefined),
+  cardFxFeePct: (v) => cleanMoney(v, parseFeePct),
+  paidOnAsOf: (v) => (Array.isArray(v) && v.every(isStr) ? [...v] : undefined),
+  davaoHolidays: bool,
+  customHolidays: (v) => (Array.isArray(v) ? [...new Set(v.filter(isIsoDate))].sort() : undefined),
+  // Own properties only, dated keys only (so never "__proto__"), short string names.
+  holidayNames: (v) =>
+    isObj(v)
+      ? Object.fromEntries(
+          Object.entries(v)
+            .filter(([k, n]) => isIsoDate(k) && isStr(n) && n.trim() !== '')
+            .map(([k, n]) => [k, (n as string).trim().slice(0, HOLIDAY_NAME_MAX)]),
+        )
+      : undefined,
+  theme: (v) => (v === 'system' || v === 'dark' || v === 'light' ? v : undefined),
+  onboarded: bool,
+  isSample: bool,
 };
 
-/** The known settings fields of `raw` that have the right type; the rest are left out. */
-function validSettings(raw: Partial<AppSettings>): Partial<AppSettings> {
+/** The known settings fields of `raw` that are valid (cleaned); the rest are left out. */
+function validSettings(raw: object): Partial<AppSettings> {
   const out: Record<string, unknown> = {};
-  for (const [key, ok] of Object.entries(SETTING_CHECKS)) {
-    const v = (raw as Record<string, unknown>)[key];
-    if (v !== undefined && ok(v)) out[key] = v;
+  for (const [key, clean] of Object.entries(SETTING_CLEANERS)) {
+    if (!Object.prototype.hasOwnProperty.call(raw, key)) continue;
+    const v = clean((raw as Record<string, unknown>)[key]);
+    if (v !== undefined) out[key] = v;
   }
   return out as Partial<AppSettings>;
 }
@@ -284,7 +347,7 @@ export function mergeSettings(local: Partial<AppSettings>, incoming: Partial<App
  * What to store for an import. Replace: the backup's settings (defaults for
  * missing or malformed fields) and items. Merge: local settings filled in from
  * the backup, items via `mergeItems`. Either way exactly one income ends up
- * the main sweldo and the user stays onboarded.
+ * the main sweldo, the user stays onboarded and the data is no longer the sample.
  */
 export function prepareImport(
   mode: 'replace' | 'merge',
@@ -298,6 +361,12 @@ export function prepareImport(
       ? { ...defaults, ...validSettings(incoming.settings) }
       : { ...defaults, ...mergeSettings(local.settings, incoming.settings) };
   settings.onboarded = true;
+  // Restored or merged data is the user's own now, never the sample.
+  settings.isSample = false;
+  // Names only for dates still on the list.
+  settings.holidayNames = Object.fromEntries(
+    Object.entries(settings.holidayNames ?? {}).filter(([d]) => settings.customHolidays.includes(d)),
+  );
 
   let items = mode === 'replace' ? [...incoming.items] : mergeItems(local.items, incoming.items);
   const fixes = new Map(ensureMainSweldo(items).map((i) => [i.id, i]));

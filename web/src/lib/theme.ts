@@ -16,6 +16,15 @@ const LIGHT_QUERY = '(prefers-color-scheme: light)';
 
 export const isTheme = (v: unknown): v is Theme => v === 'system' || v === 'dark' || v === 'light';
 
+/**
+ * Which theme App should apply now: none until the stored settings have
+ * loaded. Before that `app.settings` holds the default 'system', and applying
+ * it would undo the pre-mount theme (a flash) and overwrite the stored hint.
+ */
+export function themeToApply(storedLoaded: boolean, theme: Theme): Theme | null {
+  return storedLoaded ? theme : null;
+}
+
 /** The theme actually showing. */
 export function resolveTheme(theme: Theme, prefersLight: boolean): 'dark' | 'light' {
   if (theme === 'system') return prefersLight ? 'light' : 'dark';

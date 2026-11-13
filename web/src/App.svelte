@@ -9,7 +9,7 @@
   import Settings from './screens/Settings.svelte';
   import FirstRun from './screens/FirstRun.svelte';
   import { app, type Route } from './lib/state.svelte';
-  import { watchTheme } from './lib/theme';
+  import { themeToApply, watchTheme } from './lib/theme';
 
   let mainEl: HTMLElement | undefined = $state();
 
@@ -20,8 +20,12 @@
   });
 
   // Theme: 'system' leaves it to prefers-color-scheme (see tokens.css); the
-  // browser's theme-color follows whichever theme is showing.
-  $effect(() => watchTheme(app.settings.theme));
+  // browser's theme-color follows whichever theme is showing. main.ts applied
+  // the last-used theme before mount; nothing changes until settings load.
+  $effect(() => {
+    const t = themeToApply(app.storedLoaded, app.settings.theme);
+    return t ? watchTheme(t) : undefined;
+  });
 
   // On a screen change (including first run -> Timeline), start at the top and
   // move focus into the new screen.

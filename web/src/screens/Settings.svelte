@@ -7,15 +7,8 @@
   import AlreadyInBalance from '../components/AlreadyInBalance.svelte';
   import { app } from '../lib/state.svelte';
   import { getCachedRate } from '../lib/apis';
-  import {
-    BackupImportError,
-    IMPORT_MESSAGES,
-    MAX_FILE_CHARS,
-    exportBackup,
-    importBackup,
-    prepareImport,
-    type BackupData,
-  } from '../lib/backup';
+  import RestoreBackup from '../components/RestoreBackup.svelte';
+  import { exportBackup } from '../lib/backup';
   import type { EngineEvent, FxRate } from '../lib/engine-types';
   import { formatPeso, parseAmount, parseRate, toCentavos } from '../lib/money';
   import { formatDate, formatShort, yearOf } from '../lib/dates';
@@ -57,6 +50,8 @@
     if (busy) return;
     const was = open;
     open = null;
+    // Don't keep passwords (or anything else typed) around after closing.
+    if (was) resetEditor(was);
     if (was) void focusId(`st-row-${was}`);
   }
   function onEditorKey(e: KeyboardEvent) {
@@ -131,11 +126,6 @@
   let exportNote = $state('');
   let exportErr = $state('');
 
-  let impFile = $state<File | null>(null);
-  let impPass = $state('');
-  let impErr = $state('');
-  let impShowPass = $state(false);
-  let opened = $state.raw<BackupData | null>(null);
 
   let eraseTyped = $state('');
   let eraseErr = $state('');
@@ -163,11 +153,6 @@
     } else if (key === 'export') {
       pass1 = pass2 = pass1Err = pass2Err = exportNote = exportErr = '';
       showPass = false;
-    } else if (key === 'import') {
-      impFile = null;
-      impPass = impErr = '';
-      impShowPass = false;
-      opened = null;
     } else if (key === 'erase') {
       eraseTyped = eraseErr = '';
     }
@@ -371,63 +356,6 @@
     }
   }
 
-  // ---- import: open (decrypt and check) first, then Replace or Merge ----
-  function pickFile(e: Event & { currentTarget: HTMLInputElement }) {
-    impFile = e.currentTarget.files?.[0] ?? null;
-    impErr = '';
-  }
-
-  async function submitOpen(e: SubmitEvent) {
-    e.preventDefault();
-    if (busy) return;
-    impErr = '';
-    if (!impFile) {
-      impErr = 'Choose a backup file.';
-      return void focusId('st-imp-file');
-    }
-    if (impPass === '') {
-      impErr = 'Enter the backup’s password.';
-      return void focusId('st-imp-pass');
-    }
-    busy = 'import';
-    try {
-      // Refuse an oversized file before reading it (2 bytes per char is the most text can need).
-      if (impFile.size > MAX_FILE_CHARS * 2) throw new BackupImportError('NOT_LANTAW', 'too large');
-      const text = await impFile.text();
-      await nextPaint();
-      opened = await importBackup(text, impPass);
-      impPass = '';
-      busy = null;
-      void focusId('st-imp-choice');
-    } catch (err) {
-      impErr = err instanceof BackupImportError ? IMPORT_MESSAGES[err.code] : 'Couldn’t read that file. Try again.';
-      void focusId(err instanceof BackupImportError && err.code === 'WRONG_PASSPHRASE' ? 'st-imp-pass' : 'st-imp-file');
-    } finally {
-      busy = null;
-    }
-  }
-
-  async function applyImport(mode: 'replace' | 'merge') {
-    if (!opened || busy) return;
-    busy = 'import';
-    try {
-      const next = prepareImport(mode, app.backupData(), opened, app.today);
-      await app.importData(next);
-      const n = next.items.length;
-      announce(
-        mode === 'replace'
-          ? `Backup loaded. ${n} ${n === 1 ? 'item' : 'items'} on this device now.`
-          : `Backup merged. ${n} ${n === 1 ? 'item' : 'items'} on this device now.`,
-      );
-      busy = null;
-      close();
-    } catch {
-      impErr = SAVE_FAILED;
-    } finally {
-      busy = null;
-    }
-  }
-
   // ---- erase ----
   async function submitErase(e: SubmitEvent) {
     e.preventDefault();
@@ -449,7 +377,6 @@
   }
 
   const holidayCount = $derived(s.customHolidays.length);
-  const openedCount = $derived(opened?.items.length ?? 0);
 </script>
 
 {#snippet err(id: string, text: string)}
@@ -867,67 +794,15 @@
           {#if open === 'import'}
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <div class="editor" id="st-ed-import" role="group" aria-label="Import backup" onkeydown={onEditorKey}>
-              {#if !opened}
-                <form novalidate onsubmit={submitOpen}>
-                  <p class="lede">Open a <b>.lantaw</b> file made by Export. Nothing on this device changes until you choose below.</p>
-                  <div class="field">
-                    <label for="st-imp-file">Backup file</label>
-                    <input
-                      id="st-imp-file"
-                      class="file"
-                      type="file"
-                      accept=".lantaw,application/json"
-                      onchange={pickFile}
-                    />
-                  </div>
-                  <div class="field">
-                    <label for="st-imp-pass">Backup password</label>
-                    <input
-                      id="st-imp-pass"
-                      class="text"
-                      type={impShowPass ? 'text' : 'password'}
-                      autocomplete="off"
-                      bind:value={impPass}
-                    />
-                  </div>
-                  <label class="check">
-                    <input type="checkbox" bind:checked={impShowPass} />
-                    <span>Show password</span>
-                  </label>
-                  <div role="alert" class="status">{@render err('st-imp', impErr)}</div>
-                  <div class="actions">
-                    <button type="submit" class="btn primary" aria-disabled={busy !== null || undefined} aria-busy={busy === 'import' || undefined}>
-                      {busy === 'import' ? 'Opening…' : 'Open backup'}
-                    </button>
-                    <button type="button" class="btn ghost" onclick={close}>Cancel</button>
-                  </div>
-                </form>
-              {:else}
-                <h3 id="st-imp-choice" class="sub" tabindex="-1">
-                  Backup opened: {openedCount} {openedCount === 1 ? 'item' : 'items'}
-                </h3>
-                <p class="lede">Choose what to do with it.</p>
-                <div class="choices">
-                  <div class="choice">
-                    <button type="button" class="btn primary" aria-disabled={busy !== null || undefined} onclick={() => applyImport('merge')}>
-                      Merge
-                    </button>
-                    <p class="hint">
-                      Keeps your settings and adds the backup’s items. When both have the same item, the newer edit wins.
-                    </p>
-                  </div>
-                  <div class="choice">
-                    <button type="button" class="btn outline-danger" aria-disabled={busy !== null || undefined} onclick={() => applyImport('replace')}>
-                      Replace everything
-                    </button>
-                    <p class="hint">Removes what’s on this device now and loads the backup’s balance, items and settings.</p>
-                  </div>
-                </div>
-                <div role="alert" class="status">{@render err('st-imp2', impErr)}</div>
-                <div class="actions">
-                  <button type="button" class="btn ghost" onclick={close} aria-disabled={busy !== null || undefined}>Cancel</button>
-                </div>
-              {/if}
+              <RestoreBackup
+                idPrefix="st-imp"
+                onbusy={(b) => (busy = b ? 'import' : null)}
+                onclose={close}
+                ondone={(msg) => {
+                  announce(msg);
+                  close();
+                }}
+              />
             </div>
           {/if}
         </div>
@@ -1332,30 +1207,6 @@
   .text[aria-invalid='true'] {
     border-color: var(--coral);
   }
-  .file {
-    width: 100%;
-    min-width: 0;
-    color: var(--text);
-    font: inherit;
-    font-size: 0.9375rem;
-  }
-  .file::file-selector-button {
-    min-height: 44px;
-    margin-right: 12px;
-    padding: 8px 16px;
-    border: 1.5px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .file:focus-visible {
-    outline: 2px solid var(--teal);
-    outline-offset: 2px;
-    border-radius: 12px;
-  }
   .check {
     display: inline-flex;
     align-items: center;
@@ -1515,15 +1366,6 @@
     overflow-wrap: anywhere;
   }
 
-  .choices {
-    display: grid;
-    gap: 14px;
-  }
-  .choice {
-    display: grid;
-    justify-items: start;
-    gap: 6px;
-  }
 
   .about {
     display: grid;

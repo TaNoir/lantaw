@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { THEME_COLORS, applyTheme, resolveTheme } from './theme';
+import { THEME_COLORS, applyTheme, resolveTheme, themeToApply } from './theme';
 
 function fakeDoc(initial?: string) {
   const dataset: Record<string, string> = initial ? { theme: initial } : {};
@@ -35,5 +35,16 @@ describe('theme', () => {
     applyTheme('system', true, doc);
     expect('theme' in dataset).toBe(false);
     expect(meta.content).toBe('#F6F3EC');
+  });
+});
+
+describe('themeToApply (no flash before settings load)', () => {
+  it('leaves the pre-mount theme alone until stored settings have loaded', () => {
+    expect(themeToApply(false, 'system')).toBeNull();
+    expect(themeToApply(false, 'light')).toBeNull();
+  });
+  it('applies the stored theme once loaded', () => {
+    expect(themeToApply(true, 'system')).toBe('system');
+    expect(themeToApply(true, 'light')).toBe('light');
   });
 });
