@@ -37,8 +37,15 @@
   import { formatPeso, toCentavos } from '../lib/money';
   import { formatDate, formatShort, yearOf } from '../lib/dates';
 
-  // A date left from an earlier day moves up to today.
+  // A date left from an earlier day moves up to today (also when the date
+  // changes while the app is open).
   if (form.date === '' || form.date < app.today) form.date = app.today;
+  $effect.pre(() => {
+    const today = app.today;
+    untrack(() => {
+      if (form.date === '' || form.date < today) form.date = today;
+    });
+  });
 
   const win = $derived(app.projection ? dateWindow(app.projection, app.today, app.settings.horizonMonths) : null);
   const check = $derived(win ? buildPurchase(form, win) : null);
@@ -341,8 +348,7 @@
           {:else if app.missingRate}
             <div class="card notice">
               <h3>Lantaw needs a {app.missingRate} rate</h3>
-              <p>One of your items is in {app.missingRate}, and there’s no saved rate yet. Add it on the Timeline, then come back.</p>
-              <a class="link" href="#/timeline">Go to Timeline</a>
+              <p>One of your items is in {app.missingRate}. Type its rate in the notice at the top, then check again.</p>
             </div>
           {:else if check.empty}
             <div class="card intro">

@@ -36,6 +36,20 @@ export function buildInput(
   };
 }
 
+/**
+ * The items to send to the engine: all of them, except what-if (not counted)
+ * foreign-currency items that have no exchange rate yet. A missing rate must
+ * not stop the whole forecast for a what-if; for a counted item the engine
+ * decides (MISSING_FX only when an occurrence in the window needs the rate).
+ */
+export function forecastItems(items: StoredItem[], fx: FxRate[]): StoredItem[] {
+  const known = new Set(fx.map((r) => r.currency.toUpperCase()));
+  return items.filter((i) => {
+    const cur = i.currency.toUpperCase();
+    return i.included || cur === 'PHP' || known.has(cur);
+  });
+}
+
 function toEngineItem(i: StoredItem): Item {
   return {
     id: i.id,

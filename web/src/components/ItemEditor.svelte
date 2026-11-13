@@ -5,7 +5,7 @@
   import { getCachedRate } from '../lib/apis';
   import type { FxRate } from '../lib/engine-types';
   import type { StoredItem } from '../lib/db';
-  import { formatPeso, parseAmount, toCentavos } from '../lib/money';
+  import { formatPeso, parseAmount, roundToPeso, toCentavos } from '../lib/money';
   import { formatShort, weekday, yearOf } from '../lib/dates';
   import {
     BUSINESS_DAY_LABELS,
@@ -185,7 +185,7 @@
     if (!parsed.ok) return `Converted ${at}${feeNote}.`;
     const c = convertToPhp(parsed.value, rate.phpPerUnit, fee);
     if (c === null) return null;
-    return `≈ ${formatPeso(Math.round(c / 100) * 100)} ${at}${feeNote}.`;
+    return `≈ ${formatPeso(roundToPeso(c))} ${at}${feeNote}.`;
   });
 
   const kindHint = $derived.by(() => {

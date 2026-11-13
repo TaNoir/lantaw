@@ -33,6 +33,64 @@ describe('getHolidays', () => {
   });
 });
 
+describe('getHolidays: 30-day cache, never an empty list', () => {
+  const DAY = 86_400_000;
+  const cachedRow = (year: number, ageDays: number, value: unknown) =>
+    db.cache.put({ key: `holidays:${year}`, value, fetchedAt: Date.now() - ageDays * DAY });
+
+  it('uses a cached year younger than 30 days without the network', async () => {
+    await cachedRow(2026, 29, [{ date: '2026-06-01', name: 'Cached' }]);
+    const f = vi.fn();
+    expect(await getHolidays(2026, f as unknown as typeof fetch)).toEqual([{ date: '2026-06-01', name: 'Cached' }]);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('asks again once the cached year is older than 30 days, and replaces it', async () => {
+    await cachedRow(2026, 31, [{ date: '2026-06-01', name: 'Old' }]);
+    const f = vi.fn(async (_u: string) => json([{ date: '2026-06-12', name: 'New' }]));
+    expect(await getHolidays(2026, f as unknown as typeof fetch)).toEqual([{ date: '2026-06-12', name: 'New' }]);
+    expect(f).toHaveBeenCalledTimes(1);
+    const row = await db.cache.get('holidays:2026');
+    expect(row!.value).toEqual([{ date: '2026-06-12', name: 'New' }]);
+    expect(Date.now() - row!.fetchedAt).toBeLessThan(DAY);
+  });
+
+  it('keeps the stale cached year when the refresh fails', async () => {
+    await cachedRow(2026, 40, [{ date: '2026-06-01', name: 'Old' }]);
+    const f = vi.fn(async () => { throw new Error('offline'); });
+    expect(await getHolidays(2026, f as unknown as typeof fetch)).toEqual([{ date: '2026-06-01', name: 'Old' }]);
+    expect((await db.cache.get('holidays:2026'))!.value).toEqual([{ date: '2026-06-01', name: 'Old' }]);
+  });
+
+  it('does not cache an empty answer; falls back to the bundled list', async () => {
+    const f = vi.fn(async (_u: string) => json([]));
+    expect((await getHolidays(2026, f as unknown as typeof fetch)).length).toBe(18);
+    expect(await db.cache.get('holidays:2026')).toBeUndefined();
+    await getHolidays(2026, f as unknown as typeof fetch);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores an empty list cached by an older version (asks the network, reads the bundled list)', async () => {
+    await cachedRow(2026, 1, []);
+    const f = vi.fn(async () => { throw new Error('offline'); });
+    expect((await getHolidays(2026, f as unknown as typeof fetch)).length).toBe(18);
+    expect(f).toHaveBeenCalledTimes(1);
+    expect((await holidayDatesCached({ ...DEFAULT_SETTINGS('2026-01-01'), davaoHolidays: false }, [2026])).length).toBe(18);
+  });
+
+  it('cache-first reads still return a stale cached year at once', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('network must not be used');
+    });
+    await cachedRow(2026, 90, [{ date: '2026-06-01', name: 'Old' }]);
+    expect(await holidayDatesCached({ ...DEFAULT_SETTINGS('2026-01-01'), davaoHolidays: false }, [2026])).toEqual([
+      '2026-06-01',
+    ]);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
 describe('holidayDates', () => {
   const fail = (async () => { throw new Error('offline'); }) as unknown as typeof fetch;
   it('includes Davao only when enabled and merges custom dates', async () => {

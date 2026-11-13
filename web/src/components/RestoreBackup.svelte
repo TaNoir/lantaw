@@ -1,14 +1,16 @@
 <script lang="ts">
   // Opening a `.lantaw` backup: file + password, then "Open backup" decrypts
   // and validates it in memory (nothing is written yet), then the user picks
-  // Merge or Replace. First run has nothing to merge into, so it only offers
-  // Replace ("Restore this backup"). Used by Settings and the first-run intro.
+  // Merge or Replace. First run has nothing to merge into, and the sample
+  // budget must never be mixed with real data, so both only offer Replace
+  // ("Restore this backup"). Used by Settings and the first-run intro.
   import { onDestroy, tick } from 'svelte';
   import { app } from '../lib/state.svelte';
   import {
     BackupImportError,
     IMPORT_MESSAGES,
     MAX_FILE_CHARS,
+    balanceUnreadable,
     importBackup,
     prepareImport,
     type BackupData,
@@ -23,7 +25,7 @@
   }: {
     /** Element ids start with this ("st-imp" -> "st-imp-file", "st-imp-pass", "st-imp-choice"). */
     idPrefix: string;
-    /** First run: no local data, so only Replace. */
+    /** First run (no local data) or the sample budget (never merged into): only Replace. */
     replaceOnly?: boolean;
     /** Cancel. The decrypted backup and the password are already cleared. */
     onclose: () => void;
@@ -42,6 +44,7 @@
   let opened = $state.raw<BackupData | null>(null);
 
   const count = $derived(opened?.items.length ?? 0);
+  const BALANCE_UNREADABLE = 'Your backup’s balance couldn’t be read — please check it in Settings.';
   const SAVE_FAILED = 'Couldn’t save on this device. Check that site data is allowed, then try again.';
 
   function setBusy(b: boolean) {
@@ -110,13 +113,17 @@
     setBusy(true);
     try {
       const next = prepareImport(mode, app.backupData(), opened, app.today);
-      if (replaceOnly) app.navigate('timeline');
-      await app.importData(next);
+      // Replace with a balance that couldn't be read starts from ₱0 today: say so.
+      const badBalance = mode === 'replace' && balanceUnreadable(opened);
+      // From first run, the restored forecast shows on the Timeline.
+      if (!app.settings.onboarded) app.navigate('timeline');
+      await app.importData(next, { balanceUnreadable: badBalance });
       opened = null;
       const n = next.items.length;
       const items = `${n} ${n === 1 ? 'item' : 'items'}`;
       setBusy(false);
-      ondone(mode === 'merge' ? `Backup merged. ${items} on this device now.` : `Backup restored. ${items} on this device now.`);
+      const done = mode === 'merge' ? `Backup merged. ${items} on this device now.` : `Backup restored. ${items} on this device now.`;
+      ondone(badBalance ? `${done} ${BALANCE_UNREADABLE}` : done);
     } catch {
       error = SAVE_FAILED;
     } finally {
@@ -169,7 +176,11 @@
   {:else}
     <h3 id="{idPrefix}-choice" class="sub" tabindex="-1">Backup opened: {count} {count === 1 ? 'item' : 'items'}</h3>
     {#if replaceOnly}
-      <p class="lede">This loads the backup’s balance, items and settings on this device.</p>
+      <p class="lede">
+        {app.settings.isSample
+          ? 'This replaces the sample budget with the backup’s balance, items and settings.'
+          : 'This loads the backup’s balance, items and settings on this device.'}
+      </p>
       <div class="actions">
         <button type="button" class="btn primary" aria-disabled={busy || undefined} aria-busy={busy || undefined} onclick={() => apply('replace')}>
           {busy ? 'Restoring…' : 'Restore this backup'}

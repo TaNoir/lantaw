@@ -90,6 +90,18 @@ test.describe('smoke', () => {
     expect(backup.kdf.alg).toBe('argon2id');
     expect(typeof backup.ciphertext).toBe('string');
 
+    // While the sample is loaded, Import only offers Replace (never a merge into made-up data).
+    await page.getByRole('button', { name: 'Export encrypted backup' }).click(); // close the export editor
+    await page.getByRole('button', { name: 'Import backup' }).click();
+    const sampleImport = page.locator('#st-ed-import');
+    await sampleImport.getByLabel('Backup file').setInputFiles(file);
+    await sampleImport.getByLabel('Backup password').fill(PASS);
+    await sampleImport.getByRole('button', { name: 'Open backup' }).click();
+    await expect(sampleImport.getByRole('button', { name: 'Restore this backup' })).toBeVisible();
+    await expect(sampleImport.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    await expect(sampleImport.getByText('This replaces the sample budget')).toBeVisible();
+    await sampleImport.getByRole('button', { name: 'Cancel' }).click();
+
     // 6. Erase everything -> first run again.
     await page.getByRole('button', { name: 'Erase everything' }).click();
     const eraseForm = page.locator('#st-ed-erase');

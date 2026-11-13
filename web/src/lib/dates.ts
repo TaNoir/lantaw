@@ -80,6 +80,12 @@ export function formatMonthYear(iso: string): string {
   return formatMonthTick(iso, true);
 }
 
+/** "Nov 2027" — month and full year. */
+export function formatMonthYearLong(iso: string): string {
+  const [y, m] = parts(iso);
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
 /** The first day of the month after `iso`'s month. */
 export function nextMonthStart(iso: string): string {
   const [y, m] = parts(iso);

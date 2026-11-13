@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPeso, parseAmount, parseRate, toCentavos } from './money';
+import { formatPeso, parseAmount, parseRate, roundToPeso, toCentavos } from './money';
 
 describe('formatPeso', () => {
   it('formats whole and fractional pesos', () => {
@@ -56,5 +56,20 @@ describe('parseRate', () => {
     for (const bad of ['', '0', '0.000', '-5', 'abc', '1.2345678', '.']) {
       expect(parseRate(bad).ok).toBe(false);
     }
+  });
+});
+
+describe('roundToPeso', () => {
+  it('rounds integer centavos to whole pesos, half away from zero', () => {
+    expect(roundToPeso(127454)).toBe(127500);
+    expect(roundToPeso(127449)).toBe(127400);
+    expect(roundToPeso(127450)).toBe(127500);
+    expect(roundToPeso(0)).toBe(0);
+    expect(roundToPeso(-150)).toBe(-200);
+    expect(roundToPeso(-149)).toBe(-100);
+  });
+  it('stays exact for amounts past float precision of a /100 division', () => {
+    expect(roundToPeso(900719925474099)).toBe(900719925474100);
+    expect(roundToPeso(100005)).toBe(100000);
   });
 });

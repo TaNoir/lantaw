@@ -3,7 +3,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { initEngineSync, project } from './engine';
 import type { Input } from './engine-types';
 import type { AppSettings, StoredItem } from './db';
-import { buildInput, dueOnAsOf, isBalanceStale, todayLocal } from './input';
+import { buildInput, dueOnAsOf, forecastItems, isBalanceStale, todayLocal } from './input';
+import { EngineError } from './engine';
 import sampleJson from './sample/sample-budget.json';
 
 const sample = sampleJson as unknown as Input;
@@ -98,5 +99,51 @@ describe('dueOnAsOf', () => {
     expect(ids).toContain('sweldo');
     expect(ids).toContain('spaylater');
     expect(ticked.settings.paidOnAsOf).toEqual(['sweldo', 'spaylater']);
+  });
+});
+
+describe('forecastItems (a missing rate only blocks what the engine needs)', () => {
+  const stored = () => storedItemsFrom(sample);
+  const sgd = (over: Partial<StoredItem>): StoredItem => ({
+    ...stored().find((i) => i.id === 'chatgpt')!,
+    id: 'sgd-thing',
+    name: 'SGD thing',
+    currency: 'SGD',
+    ...over,
+  });
+  const run = (items: StoredItem[]) =>
+    project(buildInput(appSettingsFrom(sample), forecastItems(items, sample.fx), sample.holidays, sample.fx, sample.today));
+
+  it('leaves out a what-if foreign item with no rate, so the forecast still runs', () => {
+    const items = [...stored(), sgd({ included: false })];
+    expect(forecastItems(items, sample.fx).some((i) => i.id === 'sgd-thing')).toBe(false);
+    expect(run(items).days.length).toBeGreaterThan(0);
+  });
+
+  it('keeps a what-if foreign item that has a rate, and every PHP item', () => {
+    const items = [...stored(), sgd({ included: false, currency: 'usd' })];
+    expect(forecastItems(items, sample.fx).map((i) => i.id)).toEqual(items.map((i) => i.id));
+  });
+
+  it('keeps a counted foreign item with no rate: the engine reports MISSING_FX for it', () => {
+    const items = [...stored(), sgd({ included: true })];
+    expect(forecastItems(items, sample.fx).some((i) => i.id === 'sgd-thing')).toBe(true);
+    let err: unknown;
+    try {
+      run(items);
+    } catch (e) {
+      err = e;
+    }
+    const parsed = err instanceof EngineError ? err : EngineError.parse(err);
+    expect(parsed.code).toBe('MISSING_FX');
+    expect(parsed.detail).toBe('SGD');
+  });
+
+  it('a counted foreign item with nothing in the window needs no rate', () => {
+    const items = [
+      ...stored(),
+      sgd({ included: true, schedule: { start: '2020-01-01', end: '2020-02-01', every: { type: 'monthly', day: 1 } } }),
+    ];
+    expect(run(items).days.length).toBeGreaterThan(0);
   });
 });

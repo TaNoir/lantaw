@@ -15,9 +15,13 @@
   let mainEl: HTMLElement | undefined = $state();
 
   onMount(() => {
-    const stop = app.startRouter();
+    const stopRouter = app.startRouter();
+    const stopDayWatch = app.startDayWatch();
     void app.load();
-    return stop;
+    return () => {
+      stopRouter();
+      stopDayWatch();
+    };
   });
 
   // Theme: 'system' leaves it to prefers-color-scheme (see tokens.css); the

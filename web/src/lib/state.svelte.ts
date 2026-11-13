@@ -8,6 +8,7 @@
 //   2. in the background: refresh holidays and FX from the network (at most
 //      once per key / currency per hour) and, if that lands, run step 1 again.
 // Scrubbing only changes `selectedDay`; it never recomputes.
+// `today` follows the device date while the app stays open (startDayWatch).
 
 import { EngineError, initEngine, project } from './engine';
 import type { EngineEvent, FxRate, Input, Item, Projection } from './engine-types';
@@ -29,7 +30,8 @@ import {
 } from './db';
 import { getCachedRate, getRate, holidayDates, holidayDatesCached, refreshRate, setManualRate } from './apis';
 import type { BackupData } from './backup';
-import { buildInput, dueOnAsOf, todayLocal } from './input';
+import { buildInput, dueOnAsOf, forecastItems, todayLocal } from './input';
+import { newToday, watchDay } from './today';
 import { rebaseSample } from './items';
 import { daysBetween, yearOf } from './dates';
 
@@ -77,7 +79,16 @@ class AppState {
 
   route = $state<Route>(typeof location === 'undefined' ? 'timeline' : parseRoute(location.hash));
   selectedDay = $state(0);
+  /** A counted foreign-currency item needs this currency's rate and none is saved (the engine said MISSING_FX). */
   missingRate = $state<string | null>(null);
+  /**
+   * A restored backup's balance (or its date) couldn't be read, so it starts
+   * from ₱0 today: the Timeline asks the user to check it until the balance is
+   * saved or the note is dismissed. In memory only.
+   */
+  balanceCheck = $state(false);
+  /** Currencies whose online rate lookup is running right now. */
+  fetchingRates = $state.raw<string[]>([]);
   status = $state<'loading' | 'ready' | 'failed'>('loading');
   /** Why `status` is 'failed'. */
   failure = $state<'engine' | 'storage' | null>(null);
@@ -89,7 +100,6 @@ class AppState {
   #holidays: string[] = [];
   #holidayKey = '';
   #fx: FxRate[] = [];
-  #fxMissing: string | null = null;
   /** When each holiday key / currency was last sent to the network (ms). */
   #holidayTried = new Map<string, number>();
   #fxTried = new Map<string, number>();
@@ -188,20 +198,22 @@ class AppState {
     return { settings, items };
   }
 
+  /** The engine input for the current data: what-if foreign items without a rate are left out (see forecastItems). */
+  #input(): Input {
+    return buildInput(this.settings, forecastItems(this.items, this.#fx), this.#holidays, this.#fx, this.today);
+  }
+
   /**
-   * Runs the engine on the current data, synchronously. A missing exchange
-   * rate sets `missingRate` and keeps the previous projection on screen.
+   * Runs the engine on the current data, synchronously, with whatever rates
+   * are saved. When a counted item needs a rate that isn't there, the engine
+   * says MISSING_FX: that sets `missingRate` and keeps the previous
+   * projection on screen (the shared forecast notice says so).
    */
   recompute(): void {
     if (!this.#engineReady) return;
-    if (this.#fxMissing) {
-      this.missingRate = this.#fxMissing;
-      this.error = null;
-      return;
-    }
     try {
       const prev = this.projection;
-      const next = project(buildInput(this.settings, this.items, this.#holidays, this.#fx, this.today));
+      const next = project(this.#input());
       // Keep the same calendar date selected when the start date moves.
       let sel = this.selectedDay;
       if (prev && prev.start !== next.start) sel += daysBetween(next.start, prev.start);
@@ -211,8 +223,13 @@ class AppState {
       this.missingRate = null;
     } catch (e) {
       const err = e instanceof EngineError ? e : EngineError.parse(e);
-      if (err.code === 'MISSING_FX') this.missingRate = err.detail;
-      else this.error = err;
+      if (err.code === 'MISSING_FX') {
+        this.missingRate = err.detail;
+        this.error = null;
+      } else {
+        this.error = err;
+        this.missingRate = null;
+      }
     }
   }
 
@@ -223,8 +240,32 @@ class AppState {
    * Read it after `projection` changes: holidays and FX are not reactive.
    */
   currentInput(): Input | null {
-    if (!this.#engineReady || this.#fxMissing) return null;
-    return buildInput(this.settings, this.items, this.#holidays, this.#fx, this.today);
+    if (!this.#engineReady || this.missingRate) return null;
+    return this.#input();
+  }
+
+  // ---- today ----
+
+  /**
+   * Picks up a new device date (the app can stay open past midnight): sets
+   * `today` and recomputes. A selection on today moves to the new today.
+   */
+  checkToday(): void {
+    const next = newToday(this.today, todayLocal());
+    if (!next) return;
+    const onToday = this.projection !== null && this.selectedDay === this.todayIndex;
+    this.today = next;
+    if (this.status !== 'ready') return; // load() is still running and reads `today` itself
+    this.#sync()
+      .then(() => {
+        if (onToday) this.selectedDay = this.todayIndex;
+      })
+      .catch(() => {}); // a failed read keeps the forecast on screen; the next write retries
+  }
+
+  /** Checks the date when the page is shown again and after each local midnight; returns the cleanup. */
+  startDayWatch(): () => void {
+    return watchDay(() => this.checkToday());
   }
 
   // ---- writes: persist, then refresh inputs and recompute ----
@@ -234,6 +275,7 @@ class AppState {
     const next = toPlain({ ...this.settings, ...patch });
     await dbSaveSettings(next);
     this.settings = next;
+    if ('balance' in patch || 'balanceAsOf' in patch) this.balanceCheck = false;
     await this.#sync();
   }
 
@@ -285,11 +327,12 @@ class AppState {
    * one transaction, then shows its forecast. Holidays and rates are read
    * afresh because the custom holidays and currencies may have changed.
    */
-  async importData(next: BackupData): Promise<void> {
+  async importData(next: BackupData, opts: { balanceUnreadable?: boolean } = {}): Promise<void> {
     await this.#loading;
     const plain = toPlain(next);
     await replaceAll(plain.settings, plain.items);
     this.settings = plain.settings;
+    this.balanceCheck = opts.balanceUnreadable === true;
     this.items = [...plain.items].sort(byCreated);
     this.#holidayKey = '';
     this.#holidayTried.clear();
@@ -334,6 +377,7 @@ class AppState {
   async clearSample(): Promise<void> {
     await clearAll();
     this.settings = DEFAULT_SETTINGS(this.today);
+    this.balanceCheck = false;
     this.items = [];
     this.projection = null;
     this.selectedDay = 0;
@@ -423,11 +467,9 @@ class AppState {
     const holidays = holidayKey === this.#holidayKey ? this.#holidays : await holidayDatesCached(s, years);
 
     const fx: FxRate[] = [];
-    let missing: string | null = null;
     for (const cur of currenciesOf(this.items)) {
       const rate = await getCachedRate(cur);
       if (rate) fx.push(rate);
-      else missing ??= cur;
     }
 
     // A newer write started while we were reading; let it finish instead.
@@ -435,7 +477,6 @@ class AppState {
     this.#holidays = holidays;
     this.#holidayKey = holidayKey;
     this.#fx = fx;
-    this.#fxMissing = missing;
     this.recompute();
   }
 
@@ -460,15 +501,26 @@ class AppState {
     if (due(this.#holidayTried, JSON.stringify(years))) {
       tasks.push(holidayDates(s, years).then(() => true));
     }
+    const asked: string[] = [];
     for (const cur of currenciesOf(this.items)) {
-      if (due(this.#fxTried, cur)) tasks.push(getRate(cur).then((r) => r !== null));
+      if (!due(this.#fxTried, cur)) continue;
+      asked.push(cur);
+      tasks.push(getRate(cur).then((r) => r !== null));
     }
     if (tasks.length === 0) return;
 
-    const results = await Promise.allSettled(tasks);
-    if (!results.some((r) => r.status === 'fulfilled' && r.value)) return;
-    this.#holidayKey = ''; // re-read holidays from the refreshed cache
-    await this.#applyCached();
+    // Until the answers are in and used, the forecast notice says a missing
+    // rate is on its way rather than that the lookup failed.
+    this.fetchingRates = [...this.fetchingRates, ...asked];
+    try {
+      const results = await Promise.allSettled(tasks);
+      if (!results.some((r) => r.status === 'fulfilled' && r.value)) return;
+      this.#holidayKey = ''; // re-read holidays from the refreshed cache
+      await this.#applyCached();
+    } finally {
+      const done = new Set(asked);
+      this.fetchingRates = this.fetchingRates.filter((c) => !done.has(c));
+    }
   }
 }
 

@@ -675,8 +675,15 @@
     color: var(--muted);
     text-wrap: pretty;
   }
+  /* Empty (the live hint before anything is typed): visually hidden but still
+     in the page, so its first announcement isn't missed. */
   .hint:empty {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .kicker {
     margin: 0 0 10px;

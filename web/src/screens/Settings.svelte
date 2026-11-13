@@ -794,8 +794,10 @@
           {#if open === 'import'}
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <div class="editor" id="st-ed-import" role="group" aria-label="Import backup" onkeydown={onEditorKey}>
+              <!-- The sample budget is replaced, never merged into (made-up and real data don't mix). -->
               <RestoreBackup
                 idPrefix="st-imp"
+                replaceOnly={s.isSample}
                 onbusy={(b) => (busy = b ? 'import' : null)}
                 onclose={close}
                 ondone={(msg) => {

@@ -57,3 +57,12 @@ export function centavosToDecimal(centavos: number): string {
   const abs = BigInt(Math.abs(Math.trunc(centavos)));
   return `${neg ? '-' : ''}${(abs / 100n).toString()}.${(abs % 100n).toString().padStart(2, '0')}`;
 }
+
+/** Integer centavos rounded to whole pesos (half away from zero), for "≈" previews. Integer math only. */
+export function roundToPeso(centavos: number): number {
+  const neg = centavos < 0;
+  const abs = BigInt(Math.abs(Math.trunc(centavos)));
+  const pesos = (abs + 50n) / 100n;
+  const out = Number(pesos * 100n);
+  return neg && out !== 0 ? -out : out;
+}

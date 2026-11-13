@@ -344,10 +344,22 @@ export function mergeSettings(local: Partial<AppSettings>, incoming: Partial<App
 }
 
 /**
+ * True when an opened backup (see `importBackup`) had no readable balance or
+ * as-of date: those were missing or malformed and dropped, so Replace would
+ * start from ₱0 today. The caller tells the user to check the balance.
+ */
+export function balanceUnreadable(opened: BackupData): boolean {
+  const s = opened.settings as Partial<AppSettings>;
+  return s.balance === undefined || s.balanceAsOf === undefined;
+}
+
+/**
  * What to store for an import. Replace: the backup's settings (defaults for
  * missing or malformed fields) and items. Merge: local settings filled in from
  * the backup, items via `mergeItems`. Either way exactly one income ends up
  * the main sweldo, the user stays onboarded and the data is no longer the sample.
+ * Merging into the sample budget never mixes made-up data with real data: a
+ * sample local copy counts as empty, so Merge gives the same as Replace.
  */
 export function prepareImport(
   mode: 'replace' | 'merge',
@@ -355,6 +367,7 @@ export function prepareImport(
   incoming: BackupData,
   today: string,
 ): BackupData {
+  if (mode === 'merge' && local.settings.isSample) mode = 'replace';
   const defaults = DEFAULT_SETTINGS(today);
   const settings: AppSettings =
     mode === 'replace'

@@ -1,9 +1,10 @@
 <script lang="ts">
   import ScreenGate from '../components/ScreenGate.svelte';
   import { app } from '../lib/state.svelte';
-  import { planLanes } from '../lib/plans';
+  import { project } from '../lib/engine';
+  import { laneNote, planLanes } from '../lib/plans';
   import { formatPeso, toCentavos } from '../lib/money';
-  import { daysBetween, formatMonthTick, formatMonthYear, formatShort, nextMonthStart, yearOf } from '../lib/dates';
+  import { addDays, daysBetween, formatMonthTick, formatMonthYear, nextMonthStart, yearOf } from '../lib/dates';
 
   const p = $derived(app.projection);
   const buffer = $derived(toCentavos(app.settings.safetyBuffer));
@@ -15,7 +16,24 @@
   const pos = (iso: string) => (p ? Math.min(100, Math.max(0, (daysBetween(p.start, iso) / span) * 100)) : 0);
 
   // ---- lanes ----
-  const lanes = $derived(p ? planLanes(p, app.items) : []);
+  /**
+   * The engine gives finish lines only for counted items. For what-if lanes,
+   * a second run with every item counted says which of them finish in the
+   * window (an item's own finish doesn't depend on the others).
+   */
+  const whatIfFinished = $derived.by((): Set<string> => {
+    if (!p || app.items.every((i) => i.included)) return new Set();
+    const input = app.currentInput();
+    if (!input) return new Set();
+    try {
+      const all = project({ ...input, items: input.items.map((i) => ({ ...i, included: true })) });
+      return new Set(all.finishLines.map((f) => f.itemId));
+    } catch {
+      return new Set();
+    }
+  });
+  const lanes = $derived(p ? planLanes(p, app.items, whatIfFinished) : []);
+  const windowLast = $derived(p ? addDays(p.start, Math.max(0, n - 1)) : app.today);
 
   /** Month ticks along the lane axis: about four of them, kept off the very edges. */
   const ticks = $derived.by(() => {
@@ -35,10 +53,6 @@
     return out;
   });
 
-  const laneNote = (l: ReturnType<typeof planLanes>[number]) =>
-    l.kind === 'paluwagan' && l.payout
-      ? `Payout ${formatShort(l.payout, thisYear)} · last hulog ${formatShort(l.last, thisYear)}`
-      : `Last hulog ${formatShort(l.last, thisYear)}`;
 
   // ---- months ----
   const months = $derived.by(() => {
@@ -90,11 +104,16 @@
               <li class="lane" class:whatif={!l.included} class:pal={l.kind === 'paluwagan'}>
                 <div class="lane-text">
                   <span class="lane-name">{l.name}</span>
-                  <span class="lane-note">{!l.included ? 'What-if, not counted · ' : ''}{laneNote(l)}</span>
+                  <span class="lane-note">{!l.included ? 'What-if, not counted · ' : ''}{laneNote(l, windowLast, thisYear)}</span>
                 </div>
                 <div class="track" aria-hidden="true">
-                  <i class="fill" style="left:{pos(l.first)}%; width:{Math.max(1.5, pos(l.last) - pos(l.first))}%"></i>
-                  <em class="finish" style="left:{pos(l.last)}%"></em>
+                  <!-- A plan that goes on past the window runs off the end of the track, with no finish tick. -->
+                  <i
+                    class="fill"
+                    class:open={!l.finishes}
+                    style="left:{pos(l.first)}%; width:{Math.max(1.5, (l.finishes ? pos(l.last) : 100) - pos(l.first))}%"
+                  ></i>
+                  {#if l.finishes}<em class="finish" style="left:{pos(l.last)}%"></em>{/if}
                   {#if l.payout}
                     <svg class="star" style="left:{pos(l.payout)}%" viewBox="0 0 12 12">
                       <path d="M6 1l1.5 3.2l3.5.4l-2.6 2.4l.7 3.5L6 8.8L2.9 10.5l.7-3.5L1 4.6l3.5-.4z" />
@@ -248,6 +267,11 @@
     height: 8px;
     border-radius: 4px;
     background: var(--teal);
+  }
+  /* Goes on past the window: square end at the track's edge. */
+  .fill.open {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
   }
   .pal .fill {
     background: var(--mango);

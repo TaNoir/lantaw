@@ -1,12 +1,13 @@
 <script lang="ts">
   import Chart from '../components/Chart.svelte';
   import Chip from '../components/Chip.svelte';
+  import ForecastNotice from '../components/ForecastNotice.svelte';
   import { app } from '../lib/state.svelte';
   import type { EngineEvent } from '../lib/engine-types';
   import { isBalanceStale } from '../lib/input';
   import { nextCutoffIndex } from '../lib/chart';
   import { movedReason } from '../lib/cutoff';
-  import { formatPeso, parseRate, toCentavos } from '../lib/money';
+  import { formatPeso, toCentavos } from '../lib/money';
   import {
     addDays,
     daysBetween,
@@ -106,29 +107,6 @@
     }
   }
 
-  let rateRaw = $state('');
-  let rateError = $state('');
-  let savingRate = $state(false);
-
-  async function submitRate(e: SubmitEvent) {
-    e.preventDefault();
-    const cur = app.missingRate;
-    if (!cur) return;
-    const r = parseRate(rateRaw);
-    if (!r.ok) {
-      rateError = r.error;
-      return;
-    }
-    rateError = '';
-    savingRate = true;
-    try {
-      await app.saveManualRate(cur, r.value);
-      rateRaw = '';
-    } finally {
-      savingRate = false;
-    }
-  }
-
   // ---- helpers ----
   function signed(c: number): string {
     return c > 0 ? `+${formatPeso(c)}` : formatPeso(c);
@@ -206,34 +184,18 @@
         </section>
       {/if}
 
-      {#if app.missingRate}
-        <section class="banner warn" aria-labelledby="fx-h">
-          <h2 id="fx-h" class="banner-title">Lantaw needs a {app.missingRate} rate</h2>
-          <p>There’s no saved {app.missingRate} to peso rate yet, and Lantaw couldn’t get one online. Type today’s rate to update your forecast.</p>
-          <form class="rate" onsubmit={submitRate} novalidate>
-            <label for="fx-rate">₱ per 1 {app.missingRate}</label>
-            <div class="rate-row">
-              <input
-                id="fx-rate"
-                inputmode="decimal"
-                autocomplete="off"
-                placeholder="e.g. 58.25"
-                bind:value={rateRaw}
-                aria-invalid={rateError ? 'true' : undefined}
-                aria-describedby={rateError ? 'fx-err' : undefined}
-              />
-              <button class="btn primary" type="submit" disabled={savingRate}>Save rate</button>
-            </div>
-            {#if rateError}<p id="fx-err" class="field-error">{rateError}</p>{/if}
-          </form>
-        </section>
-      {/if}
+      <ForecastNotice />
 
-      {#if app.error}
-        <section class="banner danger" role="alert">
-          <h2 class="banner-title">Lantaw couldn’t update your forecast</h2>
-          <p>{app.error.detail}</p>
-          <a class="btn ghost" href="#/items">Check your items</a>
+      {#if app.balanceCheck}
+        <section class="banner" aria-labelledby="balance-check-h">
+          <p id="balance-check-h">
+            <strong>Your backup’s balance couldn’t be read — please check it in Settings.</strong>
+            Until then, the forecast starts from {formatPeso(toCentavos(s.balance))} on {formatDate(s.balanceAsOf)}.
+          </p>
+          <div class="banner-actions">
+            <a class="btn primary" href="#/settings">Check balance</a>
+            <button type="button" class="btn ghost" onclick={() => (app.balanceCheck = false)}>Dismiss</button>
+          </div>
         </section>
       {/if}
 
@@ -536,11 +498,10 @@
     flex: 1 1 220px;
     font-size: 0.9375rem;
   }
-  .banner.warn {
-    display: block;
-  }
-  .banner.warn p {
-    margin: 4px 0 12px;
+  .banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .banner.sample {
     background: color-mix(in srgb, var(--teal) 10%, var(--surface));
@@ -548,47 +509,6 @@
   }
   .banner.sample .btn:disabled {
     cursor: progress;
-  }
-  .banner.danger {
-    background: color-mix(in srgb, var(--coral) 9%, var(--surface));
-    border-color: color-mix(in srgb, var(--coral) 45%, transparent);
-  }
-  .banner-title {
-    margin: 0;
-    flex-basis: 100%;
-    font-size: 1rem;
-    font-weight: 800;
-  }
-  .rate label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: var(--muted);
-  }
-  .rate-row {
-    display: flex;
-    gap: 8px;
-  }
-  .rate input {
-    flex: 1;
-    min-width: 0;
-    min-height: 44px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    border: 1.5px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 1.125rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .rate input:focus-visible {
-    border-color: var(--teal);
-  }
-  .rate input[aria-invalid='true'] {
-    border-color: var(--coral);
   }
   .field-error {
     margin: 8px 0 0 !important;

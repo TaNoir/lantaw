@@ -31,9 +31,17 @@
   });
 
   async function reload() {
+    if (reloading) return;
     reloading = true;
-    // Activates the waiting worker; the page reloads once it takes over.
-    await updateSW?.(true);
+    try {
+      // Activates the waiting worker; the page reloads once it takes over.
+      await updateSW?.(true);
+    } catch {
+      // Activation failed: leave the toast up so Reload can be tried again.
+    } finally {
+      // Still here (no reload happened): the button works again.
+      reloading = false;
+    }
   }
 </script>
 

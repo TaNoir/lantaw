@@ -7,7 +7,7 @@
   import { getCachedRate } from '../lib/apis';
   import type { FxRate } from '../lib/engine-types';
   import type { StoredItem } from '../lib/db';
-  import { formatPeso } from '../lib/money';
+  import { formatPeso, roundToPeso } from '../lib/money';
   import {
     PRESETS,
     convertToPhp,
@@ -45,7 +45,7 @@
     const r = rates[item.currency];
     if (!r) return '(no ₱ rate yet)';
     const c = convertToPhp(item.amount, r.phpPerUnit, app.settings.cardFxFeePct);
-    return c === null ? null : `≈ ${formatPeso(Math.round(c / 100) * 100)}`;
+    return c === null ? null : `≈ ${formatPeso(roundToPeso(c))}`;
   }
 
   // ---- quick add: bill presets already in the list are left out ----

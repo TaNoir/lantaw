@@ -20,6 +20,7 @@ import {
   importBackup,
   mergeItems,
   mergeSettings,
+  balanceUnreadable,
   prepareImport,
   type BackupData,
   type BackupFile,
@@ -272,6 +273,7 @@ describe('importBackup: wrong settings fields fall back to defaults', () => {
       extra: 'ignored',
     };
     const out = await importBackup(await fileText({ ...data(), settings } as unknown as BackupData), 'correct horse');
+    expect(balanceUnreadable(out)).toBe(true);
     const s = replaceWith(out);
     const d = DEFAULT_SETTINGS('2026-11-13');
     expect(s.balance).toBe(d.balance);
@@ -408,6 +410,43 @@ describe('mergeSettings and prepareImport', () => {
       '2026-11-13',
     );
     expect(merged.settings.isSample).toBe(false);
+  });
+});
+
+describe('prepareImport into the sample budget', () => {
+  const sampleLocal = (): BackupData => ({
+    settings: { ...DEFAULT_SETTINGS('2026-11-13'), balance: '12345.00', isSample: true, onboarded: true },
+    items: [item('sample-rent', 99), income('sample-sweldo', 99, true)],
+  });
+
+  it('merge treats a sample local copy as empty: only the backup is kept', () => {
+    const out = prepareImport('merge', sampleLocal(), { settings: data().settings, items: data().items }, '2026-11-13');
+    expect(out.items.map((i) => i.id)).toEqual(['sweldo', 'davao-light']);
+    expect(out.settings.balance).toBe('8240.00');
+    expect(out.settings.isSample).toBe(false);
+    expect(out.settings.onboarded).toBe(true);
+  });
+
+  it('merge into the sample gives the same result as replace', () => {
+    const incoming = { settings: data().settings, items: data().items };
+    expect(prepareImport('merge', sampleLocal(), incoming, '2026-11-13')).toEqual(
+      prepareImport('replace', sampleLocal(), incoming, '2026-11-13'),
+    );
+  });
+});
+
+describe('balanceUnreadable', () => {
+  it('is false when the backup has a valid balance and as-of date', () => {
+    expect(balanceUnreadable(data())).toBe(false);
+  });
+
+  it('is true when the balance or its date was missing or malformed (dropped while opening)', () => {
+    const noBalance = { ...data().settings } as Partial<BackupData['settings']>;
+    delete noBalance.balance;
+    const noAsOf = { ...data().settings } as Partial<BackupData['settings']>;
+    delete noAsOf.balanceAsOf;
+    expect(balanceUnreadable({ settings: noBalance as BackupData['settings'], items: [] })).toBe(true);
+    expect(balanceUnreadable({ settings: noAsOf as BackupData['settings'], items: [] })).toBe(true);
   });
 });
 

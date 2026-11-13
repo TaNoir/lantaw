@@ -20,26 +20,41 @@ async function fetchJson(fetchFn: typeof fetch, url: string): Promise<unknown> {
   }
 }
 
+const HOLIDAY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const bundledYear = (year: number): Holiday[] => (bundled as Record<string, Holiday[]>)[String(year)] ?? [];
+
+/** A cached holiday row worth using: a non-empty list (older versions could cache []). */
+async function cachedYear(year: number): Promise<{ list: Holiday[]; fetchedAt: number } | null> {
+  const row = await db.cache.get(`holidays:${year}`);
+  if (!row || !Array.isArray(row.value) || row.value.length === 0) return null;
+  return { list: row.value as Holiday[], fetchedAt: row.fetchedAt };
+}
+
+/**
+ * Holidays for a year: the cached Nager.Date list while it is under 30 days
+ * old, else the network (a non-empty answer replaces the cache; an empty one
+ * is never cached). On failure: the stale cached list, else the bundled one.
+ */
 export async function getHolidays(year: number, fetchFn: typeof fetch = fetch): Promise<Holiday[]> {
   const key = `holidays:${year}`;
-  const cached = await db.cache.get(key);
-  if (cached) return cached.value as Holiday[];
+  const cached = await cachedYear(year);
+  if (cached && Date.now() - cached.fetchedAt < HOLIDAY_TTL_MS) return cached.list;
   try {
     const raw = await fetchJson(fetchFn, `https://date.nager.at/api/v3/PublicHolidays/${year}/PH`);
     if (!Array.isArray(raw)) throw new Error('bad holiday payload');
     const list: Holiday[] = raw.map((h: Holiday) => ({ date: h.date, name: h.name }));
+    if (list.length === 0) throw new Error('empty holiday list');
     await putCache(key, list);
     return list;
   } catch {
-    return (bundled as Record<string, Holiday[]>)[String(year)] ?? [];
+    return cached?.list ?? bundledYear(year);
   }
 }
 
-/** Network-free holidays for a year: the cached API result, else the bundled list, else []. */
+/** Network-free holidays for a year: the cached API result (however old), else the bundled list, else []. */
 async function cachedHolidays(year: number): Promise<Holiday[]> {
-  const cached = await db.cache.get(`holidays:${year}`);
-  if (cached) return cached.value as Holiday[];
-  return (bundled as Record<string, Holiday[]>)[String(year)] ?? [];
+  return (await cachedYear(year))?.list ?? bundledYear(year);
 }
 
 /** Merges per-year lists with the Davao local days (when on) and custom dates; sorted, unique. */

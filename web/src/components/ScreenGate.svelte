@@ -1,9 +1,12 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { app } from '../lib/state.svelte';
+  import ForecastNotice from './ForecastNotice.svelte';
 
-  // Loading, failed and empty states shared by the Cutoffs and Plans screens
-  // (same look as the Timeline's). Renders `children` once there is a forecast.
+  // Loading, failed and empty states shared by the Cutoffs, Plans, Kaya ba?
+  // and Items screens (same look as the Timeline's). Renders `children` once
+  // there is a forecast, under the shared "Your forecast needs attention"
+  // notice (a missing exchange rate or an engine error) when there is one.
   let {
     emptyTitle = '',
     emptyBody = '',
@@ -35,7 +38,7 @@
       <p>Its forecasting engine didn’t load. Reload the page to try again. Your data is safe on this device.</p>
     {/if}
   </section>
-{:else if requireForecast && (app.items.length === 0 || !app.projection)}
+{:else if requireForecast && app.items.length === 0}
   <section class="empty">
     <svg class="ridge" viewBox="0 0 240 90" aria-hidden="true">
       <path class="ridge-fill" d="M0 70 L40 52 L64 58 L104 22 L120 30 L150 46 L184 38 L240 50 L240 90 L0 90 Z" />
@@ -46,7 +49,20 @@
     <p>{emptyBody}</p>
     <a class="btn" href="#/items">Add items</a>
   </section>
+{:else if requireForecast && !app.projection}
+  <!-- No forecast yet: either the notice says why, or it's on its way. -->
+  {#if app.missingRate || app.error}
+    <div class="gate-notice"><ForecastNotice /></div>
+  {:else}
+    <div class="loading" aria-busy="true">
+      <p>Loading your forecast…</p>
+      <div class="skeleton"></div>
+    </div>
+  {/if}
 {:else}
+  {#if app.items.length > 0 && (app.missingRate || app.error)}
+    <div class="gate-notice"><ForecastNotice /></div>
+  {/if}
   {@render children()}
 {/if}
 
@@ -114,6 +130,15 @@
     fill: var(--mango);
     stroke: var(--bg);
     stroke-width: 3;
+  }
+  .gate-notice {
+    max-width: 44rem;
+    padding: 12px 16px 0;
+  }
+  @media (min-width: 1024px) {
+    .gate-notice {
+      padding: 32px 32px 0;
+    }
   }
   .loading {
     padding: 24px 16px;
