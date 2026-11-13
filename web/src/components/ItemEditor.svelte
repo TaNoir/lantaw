@@ -346,10 +346,28 @@
     await tick();
     (beforeDiscard?.isConnected ? beforeDiscard : titleEl)?.focus();
   }
-  function onCancel(e: Event) {
-    // Esc: never close mid-save, and never drop edits without asking.
+  /**
+   * Esc, in order: dismiss "Discard changes?" (= Keep editing), dismiss the
+   * delete confirm, otherwise ask to close. Never closes mid-save or with
+   * unsaved edits.
+   */
+  function handleEscape() {
+    if (confirmDiscard) void keepEditing();
+    else if (confirmDelete) void cancelDelete();
+    else void requestClose();
+  }
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || e.isComposing) return;
+    // Cancelling keydown stops the browser's close request entirely. Chrome's
+    // close watcher makes a second `cancel` without user activation
+    // non-cancelable, so `oncancel` alone can't stop a double Esc.
     e.preventDefault();
-    void requestClose();
+    handleEscape();
+  }
+  function onCancel(e: Event) {
+    // Fallback for close requests that skip keydown (e.g. Android back).
+    e.preventDefault();
+    handleEscape();
   }
   function onBackdrop(e: MouseEvent) {
     if (e.target === dlg) void requestClose();
@@ -373,6 +391,7 @@
   aria-labelledby="ie-title"
   onclose={() => onclose(closeMessage)}
   oncancel={onCancel}
+  onkeydown={onKeydown}
   onclick={onBackdrop}
 >
   <form class="inner" novalidate onsubmit={save}>
