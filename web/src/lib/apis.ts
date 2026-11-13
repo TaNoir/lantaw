@@ -73,11 +73,8 @@ export async function holidayDatesCached(s: AppSettings, years: number[]): Promi
   return mergeHolidays(s, years, lists);
 }
 
-export async function getRate(currency: string, fetchFn: typeof fetch = fetch): Promise<FxRate | null> {
-  const cur = currency.toUpperCase();
-  const key = `fx:${cur}`;
-  const cached = await db.cache.get(key);
-  if (cached && Date.now() - cached.fetchedAt < FX_TTL_MS) return cached.value as FxRate;
+/** Asks Frankfurter for `cur` (upper-case) and caches the answer; null on any failure. */
+async function fetchRate(cur: string, fetchFn: typeof fetch): Promise<FxRate | null> {
   try {
     const raw = (await fetchJson(
       fetchFn,
@@ -88,11 +85,33 @@ export async function getRate(currency: string, fetchFn: typeof fetch = fetch): 
       throw new Error('bad fx payload');
     }
     const rate: FxRate = { currency: cur, phpPerUnit: String(php), asOf: raw.date };
-    await putCache(key, rate);
+    await putCache(`fx:${cur}`, rate);
     return rate;
   } catch {
-    return cached ? (cached.value as FxRate) : null;
+    return null;
   }
+}
+
+export async function getRate(currency: string, fetchFn: typeof fetch = fetch): Promise<FxRate | null> {
+  const cur = currency.toUpperCase();
+  const cached = await db.cache.get(`fx:${cur}`);
+  if (cached && Date.now() - cached.fetchedAt < FX_TTL_MS) return cached.value as FxRate;
+  return (await fetchRate(cur, fetchFn)) ?? (cached ? (cached.value as FxRate) : null);
+}
+
+/**
+ * The Settings refresh button: always asks the network, even when the cached
+ * rate (or a hand-typed one) is fresh. `fresh` is false when the network
+ * failed and `rate` is whatever was cached before (or null).
+ */
+export async function refreshRate(
+  currency: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<{ rate: FxRate | null; fresh: boolean }> {
+  const cur = currency.toUpperCase();
+  const rate = await fetchRate(cur, fetchFn);
+  if (rate) return { rate, fresh: true };
+  return { rate: await getCachedRate(cur), fresh: false };
 }
 
 /** The cached rate for `currency`, however old, or null. Never touches the network. */

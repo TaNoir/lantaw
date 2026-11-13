@@ -17,6 +17,7 @@ function appSettingsFrom(input: Input): AppSettings {
     ...input.settings,
     davaoHolidays: true,
     customHolidays: ['2027-01-02'],
+    holidayNames: {},
     theme: 'dark',
     onboarded: true,
     isSample: true,

@@ -6,8 +6,10 @@
   import Plans from './screens/Plans.svelte';
   import Items from './screens/Items.svelte';
   import KayaBa from './screens/KayaBa.svelte';
+  import Settings from './screens/Settings.svelte';
   import FirstRun from './screens/FirstRun.svelte';
   import { app, type Route } from './lib/state.svelte';
+  import { watchTheme } from './lib/theme';
 
   let mainEl: HTMLElement | undefined = $state();
 
@@ -17,13 +19,9 @@
     return stop;
   });
 
-  // Theme: 'system' leaves it to prefers-color-scheme (see tokens.css).
-  $effect(() => {
-    const t = app.settings.theme;
-    const root = document.documentElement;
-    if (t === 'system') delete root.dataset.theme;
-    else root.dataset.theme = t;
-  });
+  // Theme: 'system' leaves it to prefers-color-scheme (see tokens.css); the
+  // browser's theme-color follows whichever theme is showing.
+  $effect(() => watchTheme(app.settings.theme));
 
   // On a screen change (including first run -> Timeline), start at the top and
   // move focus into the new screen.
@@ -39,15 +37,6 @@
     lastRoute = r;
   });
 
-  const TITLES: Record<Route, string> = {
-    timeline: 'Timeline',
-    cutoffs: 'Cutoffs',
-    plans: 'Plans',
-    kaya: 'Kaya ba?',
-    items: 'Items',
-    settings: 'Settings',
-    'first-run': 'Welcome',
-  };
 </script>
 
 {#if app.showFirstRun}
@@ -75,11 +64,7 @@
       {:else if app.view === 'items'}
         <Items />
       {:else}
-        <section class="soon">
-          <h1>{TITLES[app.view]}</h1>
-          <p>This screen is still being built. Your forecast is on the Timeline.</p>
-          <a href="#/timeline">Go to Timeline</a>
-        </section>
+        <Settings />
       {/if}
     </main>
   </div>
@@ -129,29 +114,5 @@
   }
   .skip:focus-visible {
     transform: none;
-  }
-
-  .soon {
-    max-width: 34rem;
-    padding: 24px 16px;
-  }
-  .soon h1 {
-    margin: 0 0 8px;
-    font-size: 1.75rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-  }
-  .soon p {
-    margin: 0 0 16px;
-    color: var(--muted);
-  }
-  .soon a {
-    color: var(--teal-text);
-    font-weight: 700;
-  }
-  @media (min-width: 1024px) {
-    .soon {
-      padding: 40px 32px;
-    }
   }
 </style>

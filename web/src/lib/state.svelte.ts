@@ -27,7 +27,8 @@ import {
   type AppSettings,
   type StoredItem,
 } from './db';
-import { getCachedRate, getRate, holidayDates, holidayDatesCached, setManualRate } from './apis';
+import { getCachedRate, getRate, holidayDates, holidayDatesCached, refreshRate, setManualRate } from './apis';
+import type { BackupData } from './backup';
 import { buildInput, dueOnAsOf, todayLocal } from './input';
 import { rebaseSample } from './items';
 import { daysBetween, yearOf } from './dates';
@@ -260,6 +261,48 @@ class AppState {
   async saveManualRate(currency: string, phpPerUnit: string): Promise<void> {
     await setManualRate(currency, phpPerUnit, this.today);
     await this.#sync();
+  }
+
+  /**
+   * The Settings refresh button: asks Frankfurter for `currency` now (even if
+   * the cached rate is fresh) and recomputes when a new rate came back.
+   */
+  async refreshRate(currency: string): Promise<{ rate: FxRate | null; fresh: boolean }> {
+    const out = await refreshRate(currency);
+    if (out.fresh) await this.#sync();
+    return out;
+  }
+
+  // ---- backup ----
+
+  /** What a backup holds: plain copies of the settings and items (never the cache). */
+  backupData(): BackupData {
+    return toPlain({ settings: this.settings, items: this.items });
+  }
+
+  /**
+   * Stores an imported backup (already merged or not, see `prepareImport`) in
+   * one transaction, then shows its forecast. Holidays and rates are read
+   * afresh because the custom holidays and currencies may have changed.
+   */
+  async importData(next: BackupData): Promise<void> {
+    await this.#loading;
+    const plain = toPlain(next);
+    await replaceAll(plain.settings, plain.items);
+    this.settings = plain.settings;
+    this.items = [...plain.items].sort(byCreated);
+    this.#holidayKey = '';
+    this.#holidayTried.clear();
+    this.#fxTried.clear();
+    if (this.items.length > 0) void requestPersist();
+    await this.#sync();
+    this.selectedDay = this.todayIndex;
+  }
+
+  /** Settings → Erase everything: wipes the device, back to the first-run intro. */
+  async eraseEverything(): Promise<void> {
+    await this.#loading;
+    await this.clearSample();
   }
 
   // ---- first run and the sample budget ----

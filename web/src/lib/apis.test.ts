@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db, DEFAULT_SETTINGS } from './db';
-import { getCachedRate, getHolidays, getRate, holidayDates, holidayDatesCached, setManualRate } from './apis';
+import { getCachedRate, getHolidays, getRate, holidayDates, refreshRate, holidayDatesCached, setManualRate } from './apis';
 
 const json = (body: unknown) => ({ ok: true, json: async () => body }) as Response;
 
@@ -74,6 +74,31 @@ describe('getRate', () => {
     const f = vi.fn();
     expect(await getRate('USD', f as unknown as typeof fetch)).toEqual({ currency: 'USD', phpPerUnit: '58.5', asOf: '2026-11-13' });
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe('refreshRate', () => {
+  it('asks the network even while the cached rate is fresh, and caches the answer', async () => {
+    await setManualRate('USD', '58.5', '2026-11-13');
+    const f = vi.fn(async (_u: string) => json({ date: '2026-11-13', rates: { PHP: 63.5 } }));
+    const r = await refreshRate('usd', f as unknown as typeof fetch);
+    expect(r).toEqual({ rate: { currency: 'USD', phpPerUnit: '63.5', asOf: '2026-11-13' }, fresh: true });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(await getCachedRate('USD')).toEqual(r.rate);
+  });
+
+  it('offline: keeps and returns the cached rate, marked not fresh', async () => {
+    await setManualRate('USD', '58.5', '2026-11-10');
+    const f = vi.fn(async () => { throw new Error('offline'); });
+    expect(await refreshRate('USD', f as unknown as typeof fetch)).toEqual({
+      rate: { currency: 'USD', phpPerUnit: '58.5', asOf: '2026-11-10' },
+      fresh: false,
+    });
+  });
+
+  it('offline with nothing cached gives no rate', async () => {
+    const f = vi.fn(async () => { throw new Error('offline'); });
+    expect(await refreshRate('USD', f as unknown as typeof fetch)).toEqual({ rate: null, fresh: false });
   });
 });
 

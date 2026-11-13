@@ -6,6 +6,8 @@ export type StoredItem = Item & { createdAt: number; updatedAt: number };
 export type AppSettings = Settings & {
   davaoHolidays: boolean;
   customHolidays: string[];
+  /** Optional names for custom holidays, by date (display only). */
+  holidayNames: Record<string, string>;
   theme: 'system' | 'dark' | 'light';
   onboarded: boolean;
   isSample: boolean;
@@ -61,6 +63,7 @@ export function DEFAULT_SETTINGS(today: string): AppSettings {
     paidOnAsOf: [],
     davaoHolidays: true,
     customHolidays: [],
+    holidayNames: {},
     theme: 'system',
     onboarded: false,
     isSample: false,
