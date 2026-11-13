@@ -43,7 +43,7 @@
       <h3 class="title">{title}</h3>
       {#if best}<span class="best-chip">Best of these</span>{/if}
     </div>
-    <span class="tag {result.verdict}">
+    <span class="tag {result.verdict}" data-testid="verdict-tag">
       {#if result.verdict === 'kaya'}
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3l6-7" /></svg>
       {:else if result.verdict === 'gipit'}

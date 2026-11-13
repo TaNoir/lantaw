@@ -7,3 +7,4 @@ web/src/lib/wasm-pkg/
 .impeccable/
 web/test-results/
 web/playwright-report/
+.claude/

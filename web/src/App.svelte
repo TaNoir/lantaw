@@ -8,6 +8,7 @@
   import KayaBa from './screens/KayaBa.svelte';
   import Settings from './screens/Settings.svelte';
   import FirstRun from './screens/FirstRun.svelte';
+  import UpdatePrompt from './components/UpdatePrompt.svelte';
   import { app, type Route } from './lib/state.svelte';
   import { themeToApply, watchTheme } from './lib/theme';
 
@@ -73,6 +74,8 @@
     </main>
   </div>
 {/if}
+
+<UpdatePrompt raised={!app.showFirstRun && app.storedLoaded} />
 
 <style>
   .shell {

@@ -257,7 +257,7 @@
             <p class="kicker">
               {isToday ? `Balance today · ${formatShort(selDate, thisYear)}` : `Balance on ${formatDate(selDate)}`}
             </p>
-            <p class="big" class:low={balance < buffer}>{formatPeso(balance)}</p>
+            <p class="big" class:low={balance < buffer} data-testid="balance">{formatPeso(balance)}</p>
             <p class="delta">{deltaText}</p>
           </div>
           <div class="horizon" role="group" aria-label="Look ahead">
