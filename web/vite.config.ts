@@ -2,8 +2,6 @@ import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// The only two network hosts the app talks to (see lib/apis.ts). The app keeps
-// its own copy in IndexedDB too; this is a second layer for flaky connections.
 const DAY = 24 * 60 * 60;
 
 export default defineConfig({
@@ -36,6 +34,9 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         navigateFallback: 'index.html',
+        // The only two network hosts the app talks to (see lib/apis.ts). The app
+        // keeps its own copy in IndexedDB too; this is a second layer for flaky
+        // connections.
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.frankfurter\.dev\/.*/,
