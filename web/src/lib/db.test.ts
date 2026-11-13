@@ -67,3 +67,18 @@ describe('storage', () => {
     expect(await db.table('cache').count()).toBe(0);
   });
 });
+
+// Svelte 5 `$state` values are Proxies, which IndexedDB can't clone
+// (DataCloneError). The storage functions must store plain copies.
+describe('writes from reactive state', () => {
+  it('saves Proxy-wrapped settings and items and reads them back as plain data', async () => {
+    const s = { ...DEFAULT_SETTINGS('2026-11-13'), balance: '8240.00', paidOnAsOf: new Proxy(['sweldo'], {}) };
+    await saveSettings(new Proxy(s, {}));
+    expect(await getSettings()).toEqual({ ...s, paidOnAsOf: ['sweldo'] });
+
+    const it1 = item('rent');
+    await putItem(new Proxy({ ...it1, schedule: new Proxy({ ...it1.schedule }, {}) }, {}));
+    const [back] = await listItems();
+    expect(back).toMatchObject(it1);
+  });
+});

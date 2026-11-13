@@ -1,4 +1,4 @@
-import { db, type AppSettings } from './db';
+import { db, putCache, type AppSettings } from './db';
 import type { FxRate } from './engine-types';
 import bundled from './data/holidays-ph.json';
 import { DAVAO_LOCAL } from './data/davao';
@@ -28,7 +28,7 @@ export async function getHolidays(year: number, fetchFn: typeof fetch = fetch): 
     const raw = await fetchJson(fetchFn, `https://date.nager.at/api/v3/PublicHolidays/${year}/PH`);
     if (!Array.isArray(raw)) throw new Error('bad holiday payload');
     const list: Holiday[] = raw.map((h: Holiday) => ({ date: h.date, name: h.name }));
-    await db.cache.put({ key, value: list, fetchedAt: Date.now() });
+    await putCache(key, list);
     return list;
   } catch {
     return (bundled as Record<string, Holiday[]>)[String(year)] ?? [];
@@ -88,7 +88,7 @@ export async function getRate(currency: string, fetchFn: typeof fetch = fetch): 
       throw new Error('bad fx payload');
     }
     const rate: FxRate = { currency: cur, phpPerUnit: String(php), asOf: raw.date };
-    await db.cache.put({ key, value: rate, fetchedAt: Date.now() });
+    await putCache(key, rate);
     return rate;
   } catch {
     return cached ? (cached.value as FxRate) : null;
@@ -104,5 +104,5 @@ export async function getCachedRate(currency: string): Promise<FxRate | null> {
 export async function setManualRate(currency: string, phpPerUnit: string, today: string): Promise<void> {
   const cur = currency.toUpperCase();
   const rate: FxRate = { currency: cur, phpPerUnit, asOf: today };
-  await db.cache.put({ key: `fx:${cur}`, value: rate, fetchedAt: Date.now() });
+  await putCache(`fx:${cur}`, rate);
 }

@@ -14,13 +14,16 @@ import type { EngineEvent, FxRate, Input, Item, Projection } from './engine-type
 import {
   DEFAULT_SETTINGS,
   clearAll,
+  clearItems,
   db,
   deleteItem as dbDeleteItem,
   getSettings,
   listItems,
   putItem,
+  replaceAll,
   requestPersist,
   saveSettings as dbSaveSettings,
+  toPlain,
   type AppSettings,
   type StoredItem,
 } from './db';
@@ -177,11 +180,7 @@ class AppState {
   async #writeSample(): Promise<{ settings: AppSettings; items: StoredItem[] }> {
     const sample = (await import('./sample/sample-budget.json')).default as unknown as Input;
     const { settings, items } = rebaseSample(sample, this.today);
-    await db.transaction('rw', db.items, db.settings, async () => {
-      await db.items.clear();
-      await dbSaveSettings(settings);
-      await db.items.bulkPut(items);
-    });
+    await replaceAll(settings, items);
     for (const r of sample.fx) {
       if (!(await getCachedRate(r.currency))) await setManualRate(r.currency, r.phpPerUnit, r.asOf);
     }
@@ -219,7 +218,8 @@ class AppState {
   // ---- writes: persist, then refresh inputs and recompute ----
 
   async updateSettings(patch: Partial<AppSettings>): Promise<void> {
-    const next = { ...this.settings, ...patch };
+    // Plain data in memory too: `patch` may hold `$state` proxies from a form.
+    const next = toPlain({ ...this.settings, ...patch });
     await dbSaveSettings(next);
     this.settings = next;
     await this.#sync();
@@ -263,6 +263,19 @@ class AppState {
     this.selectedDay = this.todayIndex;
   }
 
+  /**
+   * Start (or the sample) on the intro while not onboarded: removes items left
+   * from an unfinished first run (only quick-add items can be saved before the
+   * end), so onboarding always starts clean and never duplicates them.
+   */
+  async startFirstRun(): Promise<void> {
+    await this.#loading;
+    if (this.settings.onboarded || this.items.length === 0) return;
+    await clearItems();
+    this.items = [];
+    await this.#sync();
+  }
+
   /** "Clear" on the sample banner: erases everything on the device, back to first run. */
   async clearSample(): Promise<void> {
     await clearAll();
@@ -285,7 +298,7 @@ class AppState {
   async finishFirstRun(patch: Partial<AppSettings>, items: StoredItem[]): Promise<void> {
     await this.#loading;
     for (const item of items) await putItem(item);
-    const next: AppSettings = { ...this.settings, ...patch, onboarded: true, isSample: false };
+    const next: AppSettings = toPlain({ ...this.settings, ...patch, onboarded: true, isSample: false });
     await dbSaveSettings(next);
     this.items = [...(await listItems())].sort(byCreated);
     this.settings = next;

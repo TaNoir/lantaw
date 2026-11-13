@@ -32,7 +32,7 @@
   const NUMBERED: Partial<Record<Step, number>> = { balance: 1, sweldo: 2, quick: 3 };
 
   let step = $state<Step>('intro');
-  let busy = $state<'sample' | 'finish' | null>(null);
+  let busy = $state<'start' | 'sample' | 'finish' | null>(null);
   let failure = $state('');
   const thisYear = $derived(yearOf(app.today));
 
@@ -45,6 +45,24 @@
   }
 
   // ---- intro ----
+  /** Start: drop anything left from an unfinished first run, then ask for the balance. */
+  async function start() {
+    if (busy) return;
+    busy = 'start';
+    failure = '';
+    try {
+      await app.startFirstRun();
+      added = {};
+      paid = [];
+      busy = null;
+      await go('balance');
+    } catch {
+      failure = 'Couldn’t open storage on this device. Check that site data is allowed, then try again.';
+    } finally {
+      busy = null;
+    }
+  }
+
   async function trySample() {
     if (busy) return;
     busy = 'sample';
@@ -96,7 +114,7 @@
   // ---- step 2: sweldo ----
   let sweldo = $state<SweldoForm>(blankSweldo(app.today));
   let sweldoTried = $state(false);
-  let thirteenthTouched = false;
+  let thirteenthTouched = $state(false);
   let nextPaydayTouched = false;
   /** False when the sweldo step was skipped ("I don't have a regular sweldo"). */
   let withSweldo = false;
@@ -110,6 +128,13 @@
     const d = defaultThirteenth(sweldo.amount, sweldo.schedule);
     if (!thirteenthTouched) sweldo.thirteenthAmount = d;
   });
+
+  /** Typing marks the 13th month as the user's own; an emptied field goes back to the default when left. */
+  function blurThirteenth() {
+    if (sweldo.thirteenthAmount.trim() !== '') return;
+    thirteenthTouched = false;
+    sweldo.thirteenthAmount = defaultThirteenth(sweldo.amount, sweldo.schedule);
+  }
 
   const monthlyHint = $derived.by(() => {
     const a = parseAmount(sweldo.amount);
@@ -222,7 +247,7 @@
     try {
       const writes = finalWrites();
       app.navigate('timeline');
-      await app.finishFirstRun({ ...settingsPatch(), paidOnAsOf: paid }, writes);
+      await app.finishFirstRun({ ...settingsPatch(), paidOnAsOf: $state.snapshot(paid) }, writes);
     } catch {
       failure = 'Couldn’t save on this device. Check that site data is allowed, then try again.';
       busy = null;
@@ -306,7 +331,7 @@
           </div>
           <div class="actions">
             {@render failed()}
-            <button type="button" class="btn primary" onclick={() => go('balance')} disabled={busy !== null}>Start</button>
+            <button type="button" class="btn primary" onclick={start} disabled={busy !== null}>Start</button>
             <button type="button" class="btn ghost" onclick={trySample} disabled={busy !== null} aria-busy={busy === 'sample' || undefined}>
               {busy === 'sample' ? 'Loading the sample…' : 'Try a sample budget'}
             </button>
@@ -325,6 +350,7 @@
                   <span aria-hidden="true">₱</span>
                   <input
                     id="fr-balance"
+                    aria-label="Balance"
                     inputmode="decimal"
                     autocomplete="off"
                     placeholder="0"
@@ -368,6 +394,7 @@
                   <span aria-hidden="true">₱</span>
                   <input
                     id="fr-amount"
+                    aria-label="Each payday"
                     inputmode="decimal"
                     autocomplete="off"
                     placeholder="0"
@@ -385,7 +412,13 @@
                 <div class="opts">
                   {#each SWELDO_SCHEDULES as o (o.id)}
                     <label class="opt">
-                      <input type="radio" name="fr-schedule" value={o.id} bind:group={sweldo.schedule} />
+                      <input
+                        type="radio"
+                        name="fr-schedule"
+                        value={o.id}
+                        aria-label={o.label}
+                        bind:group={sweldo.schedule}
+                      />
                       <span>{o.label}</span>
                     </label>
                   {/each}
@@ -432,12 +465,13 @@
               <div class="extra">
                 <div class="extra-row">
                   <div>
-                    <p class="extra-title" id="fr-13-label">13th month pay</p>
+                    <label class="extra-title" for="fr-13">13th month pay</label>
                     <p class="hint" id="fr-13-hint">Every December 15. Usually one month’s pay.</p>
                   </div>
                   <Toggle
+                    id="fr-13"
                     checked={sweldo.thirteenth}
-                    labelledby="fr-13-label"
+                    label="13th month pay"
                     describedby="fr-13-hint"
                     onchange={(v) => (sweldo.thirteenth = v)}
                   />
@@ -453,7 +487,11 @@
                         autocomplete="off"
                         placeholder="0"
                         bind:value={sweldo.thirteenthAmount}
-                        oninput={(e) => (thirteenthTouched = e.currentTarget.value.trim() !== '')}
+                        aria-label="13th month amount"
+                        oninput={(e) => {
+                          if (e.currentTarget.value.trim() !== '') thirteenthTouched = true;
+                        }}
+                        onblur={blurThirteenth}
                         aria-invalid={sweldoErrors.thirteenthAmount ? 'true' : undefined}
                         aria-describedby={sweldoErrors.thirteenthAmount ? 'fr-thirteenthAmount-err' : undefined}
                       />
@@ -554,22 +592,27 @@
     display: flex;
     flex-direction: column;
     width: 100%;
+    min-width: 0;
     max-width: 30rem;
   }
   .step {
     display: flex;
     flex: 1;
     flex-direction: column;
+    min-width: 0;
   }
   .form {
     display: flex;
     flex: 1;
     flex-direction: column;
+    min-width: 0;
   }
   .body {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 18px;
+    min-width: 0;
   }
   @media (prefers-reduced-motion: no-preference) {
     .step {
@@ -644,6 +687,7 @@
   /* ---------- intro ---------- */
   .intro {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     padding-top: 20px;
   }
@@ -769,6 +813,8 @@
   }
   .money {
     display: flex;
+    width: 100%;
+    min-width: 0;
     align-items: center;
     gap: 6px;
     min-height: 64px;
@@ -785,7 +831,10 @@
     color: var(--muted);
   }
   .money input {
-    flex: 1;
+    flex: 1 1 0;
+    /* A percentage width makes the field shrink to fit (form controls
+       otherwise keep their intrinsic size and overflow on phones). */
+    width: 100%;
     min-width: 0;
     padding: 8px 0;
     border: 0;
@@ -813,7 +862,10 @@
   }
   .date,
   .select {
+    display: block;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     min-height: 48px;
     padding: 10px 14px;
     border-radius: 14px;
@@ -912,8 +964,10 @@
     gap: 12px;
   }
   .extra-title {
+    display: block;
     margin: 0;
     font-weight: 700;
+    cursor: pointer;
   }
   @media (min-width: 1024px) {
     .money,
@@ -985,6 +1039,7 @@
   /* ---------- actions ---------- */
   .actions {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
     margin-top: auto;
     padding-top: 28px;
