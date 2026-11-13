@@ -215,6 +215,17 @@ class AppState {
     }
   }
 
+  /**
+   * The engine input the current projection was built from (same settings,
+   * items, cached holidays and FX), for Kaya ba?. Null before the engine is
+   * ready or while an exchange rate is missing (`missingRate` says which).
+   * Read it after `projection` changes: holidays and FX are not reactive.
+   */
+  currentInput(): Input | null {
+    if (!this.#engineReady || this.#fxMissing) return null;
+    return buildInput(this.settings, this.items, this.#holidays, this.#fx, this.today);
+  }
+
   // ---- writes: persist, then refresh inputs and recompute ----
 
   async updateSettings(patch: Partial<AppSettings>): Promise<void> {

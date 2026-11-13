@@ -50,3 +50,10 @@ export function parseRate(raw: string): ParseResult {
   const whole = BigInt(m[1] || '0').toString();
   return { ok: true, value: m[2] ? `${whole}.${m[2]}` : whole };
 }
+
+/** Integer centavos as a 2-dp decimal string for the engine or storage: 483167 -> "4831.67". Integer math only. */
+export function centavosToDecimal(centavos: number): string {
+  const neg = centavos < 0;
+  const abs = BigInt(Math.abs(Math.trunc(centavos)));
+  return `${neg ? '-' : ''}${(abs / 100n).toString()}.${(abs % 100n).toString().padStart(2, '0')}`;
+}

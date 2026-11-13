@@ -5,6 +5,7 @@
   import Cutoffs from './screens/Cutoffs.svelte';
   import Plans from './screens/Plans.svelte';
   import Items from './screens/Items.svelte';
+  import KayaBa from './screens/KayaBa.svelte';
   import FirstRun from './screens/FirstRun.svelte';
   import { app, type Route } from './lib/state.svelte';
 
@@ -69,6 +70,8 @@
         <Cutoffs />
       {:else if app.view === 'plans'}
         <Plans />
+      {:else if app.view === 'kaya'}
+        <KayaBa />
       {:else if app.view === 'items'}
         <Items />
       {:else}
