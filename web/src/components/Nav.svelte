@@ -5,7 +5,7 @@
   let { route }: { route: Route } = $props();
 
   type Tab = { id: Route; label: string; icon: string };
-  // Icon paths are 24×24, drawn with a 2px stroke in currentColor.
+  // Icon paths are 24×24, drawn with a 1.9px stroke in currentColor.
   const tabs: Tab[] = [
     { id: 'timeline', label: 'Timeline', icon: 'M3 18 L9 11 L13 14 L21 5' },
     { id: 'cutoffs', label: 'Cutoffs', icon: 'M4 6.5h16v13.5h-16z M4 10.5h16 M8.5 3.5v5 M15.5 3.5v5' },
@@ -19,7 +19,7 @@
   ];
 
   const gear =
-    'M19.38 10.17L21.89 10.51L21.89 13.49L19.38 13.83L18.51 15.92L20.04 17.94L17.94 20.04L15.92 18.51L13.83 19.38L13.49 21.89L10.51 21.89L10.17 19.38L8.08 18.51L6.06 20.04L3.96 17.94L5.49 15.92L4.62 13.83L2.11 13.49L2.11 10.51L4.62 10.17L5.49 8.08L3.96 6.06L6.06 3.96L8.08 5.49L10.17 4.62L10.51 2.11L13.49 2.11L13.83 4.62L15.92 5.49L17.94 3.96L20.04 6.06L18.51 8.08Z M12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6z';
+    'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1.5 14h5 M9.5 8h5 M17.5 16h5';
   const lock = 'M6 11h12v9.5h-12z M8.5 11V8a3.5 3.5 0 0 1 7 0v3';
 </script>
 
@@ -29,44 +29,36 @@
   </svg>
 {/snippet}
 
-<!-- Phones: slim app bar with the brand and the Settings gear. -->
-<header class="appbar">
+<header class="top">
   <a class="brand" href="#/timeline">
-    <span aria-hidden="true"><Logo size={28} /></span>
+    <span aria-hidden="true"><Logo size={30} /></span>
     <span class="word">lantaw</span>
   </a>
-  <a class="gear" href="#/settings" aria-label="Settings" aria-current={route === 'settings' ? 'page' : undefined}>
-    {@render icon(gear)}
-  </a>
-</header>
 
-<!-- Phones: bottom tab bar. 1024px and wider: left rail. -->
-<nav class="tabs" aria-label="Main">
-  <a class="brand rail-only" href="#/timeline">
-    <span aria-hidden="true"><Logo size={32} /></span>
-    <span class="word">lantaw</span>
-  </a>
-  <ul>
-    {#each tabs as tab (tab.id)}
-      <li>
-        <a href="#/{tab.id}" aria-current={route === tab.id ? 'page' : undefined}>
-          <span class="pill">{@render icon(tab.icon)}</span>
-          <span class="label">{tab.label}</span>
-        </a>
-      </li>
-    {/each}
-  </ul>
-  <div class="foot rail-only">
-    <a href="#/settings" aria-current={route === 'settings' ? 'page' : undefined}>
-      <span class="pill">{@render icon(gear)}</span>
-      <span class="label">Settings</span>
-    </a>
+  <!-- 1024px and wider: a pill bar in the middle of the top bar. Phones: a floating tab bar at the bottom. -->
+  <nav class="tabs" aria-label="Main">
+    <ul>
+      {#each tabs as tab (tab.id)}
+        <li>
+          <a href="#/{tab.id}" aria-current={route === tab.id ? 'page' : undefined}>
+            <span class="pill">{@render icon(tab.icon)}</span>
+            <span class="label">{tab.label}</span>
+          </a>
+        </li>
+      {/each}
+    </ul>
+  </nav>
+
+  <div class="end">
     <p class="private">
       {@render icon(lock)}
-      <span>Stored only on this device</span>
+      <span>Only on this device</span>
     </p>
+    <a class="gear" href="#/settings" aria-label="Settings" aria-current={route === 'settings' ? 'page' : undefined}>
+      {@render icon(gear)}
+    </a>
   </div>
-</nav>
+</header>
 
 <style>
   .ico {
@@ -75,9 +67,20 @@
     flex: none;
     fill: none;
     stroke: currentColor;
-    stroke-width: 2;
+    stroke-width: 1.9;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  .top {
+    position: relative;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
   }
 
   .brand {
@@ -97,174 +100,151 @@
     letter-spacing: -0.04em;
   }
 
-  /* ---------- phones ---------- */
-  .appbar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
+  .end {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    padding-top: max(10px, env(safe-area-inset-top));
-    background: var(--bg);
+    gap: 14px;
+  }
+  .private {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .private .ico {
+    width: 17px;
+    height: 17px;
   }
   .gear {
     display: grid;
     place-items: center;
     width: 44px;
     height: 44px;
-    margin-right: -8px;
-    border-radius: 12px;
+    margin-right: -6px;
+    border-radius: 99px;
     color: var(--muted);
+    transition:
+      color 160ms ease-out,
+      background-color 160ms ease-out;
   }
-  .gear:hover,
+  .gear:hover {
+    color: var(--text);
+    background: var(--glass-hover);
+  }
   .gear[aria-current='page'] {
-    color: var(--teal-text);
-    background: var(--surface-2);
+    color: var(--on-pill);
+    background: var(--pill-on);
   }
 
+  /* ---------- phones: floating tab bar ---------- */
   .tabs {
     position: fixed;
-    inset: auto 0 0 0;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
     z-index: 30;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom);
+    border-radius: 24px;
+    background: var(--glass-solid);
+    border: 1px solid var(--glass-line);
+    box-shadow: var(--shadow-float);
   }
   .tabs ul {
     display: flex;
     margin: 0;
-    padding: 0 4px;
+    padding: 4px;
     list-style: none;
   }
   .tabs li {
     flex: 1 1 0;
     min-width: 0;
   }
-  .tabs ul a {
+  .tabs a {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    min-height: 64px;
-    padding: 8px 2px 6px;
+    min-height: 58px;
+    padding: 6px 2px 5px;
     color: var(--muted);
     text-decoration: none;
-    border-radius: 12px;
+    border-radius: 20px;
+    transition:
+      color 160ms ease-out,
+      background-color 160ms ease-out;
   }
   .label {
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-size: 0.8125rem;
+    font-weight: 700;
     line-height: 1.2;
     white-space: nowrap;
   }
   .pill {
     display: grid;
     place-items: center;
-    width: 52px;
-    height: 30px;
+    width: 48px;
+    height: 28px;
     border-radius: 99px;
     transition: background-color 160ms ease-out;
   }
-  .tabs a[aria-current='page'] {
-    color: var(--teal-text);
-  }
-  .tabs a[aria-current='page'] .pill {
-    background: color-mix(in srgb, var(--teal) 18%, transparent);
-  }
-  .tabs ul a:hover {
+  .tabs a:hover {
     color: var(--text);
   }
-  .tabs ul a[aria-current='page']:hover {
-    color: var(--teal-text);
+  .tabs a[aria-current='page'] {
+    color: var(--text);
+  }
+  .tabs a[aria-current='page'] .pill {
+    background: var(--pill-on);
+    color: var(--on-pill);
   }
 
-  .rail-only {
-    display: none;
-  }
-
-  /* ---------- 1024px and wider: left rail ---------- */
+  /* ---------- 1024px and wider: pill bar in the top bar ---------- */
   @media (min-width: 1024px) {
-    .appbar {
-      display: none;
-    }
-    .rail-only {
-      display: flex;
+    .top {
+      height: var(--topbar);
+      padding: 0 32px;
     }
     .tabs {
-      position: sticky;
-      inset: 0 auto auto auto;
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 22px 14px 18px;
-      background: var(--bg);
-      border-top: 0;
-      border-right: 1px solid var(--border);
-    }
-    .tabs .brand {
-      padding: 4px 8px;
-      margin-bottom: 22px;
+      position: absolute;
+      left: 50%;
+      right: auto;
+      bottom: auto;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 99px;
+      background: var(--glass);
+      box-shadow: none;
     }
     .tabs ul {
-      flex-direction: column;
-      gap: 4px;
-      padding: 0;
+      gap: 2px;
     }
-    .tabs ul a,
-    .foot a {
+    .tabs a {
       flex-direction: row;
-      gap: 12px;
-      min-height: 46px;
-      padding: 8px 12px;
-      color: var(--muted);
-      text-decoration: none;
-      border-radius: 12px;
+      min-height: 40px;
+      padding: 0 16px;
+      border-radius: 99px;
+      gap: 0;
+    }
+    .pill {
+      display: none;
     }
     .label {
       font-size: 0.9375rem;
     }
-    .pill {
-      width: auto;
-      height: auto;
-      background: none !important;
-    }
     .tabs a[aria-current='page'] {
-      background: var(--surface-2);
-      color: var(--teal-text);
-    }
-    .tabs ul a:hover,
-    .foot a:hover {
-      color: var(--text);
-      background: var(--surface-2);
-    }
-    .tabs ul a[aria-current='page']:hover,
-    .foot a[aria-current='page']:hover {
-      color: var(--teal-text);
-    }
-    .foot {
-      margin-top: auto;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .foot a {
-      display: flex;
-      align-items: center;
+      background: var(--pill-on);
+      color: var(--on-pill);
     }
     .private {
       display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 0;
-      padding: 8px 12px;
-      font-size: 0.875rem;
-      color: var(--muted);
     }
-    .private .ico {
-      width: 18px;
-      height: 18px;
+  }
+  @media (min-width: 1024px) and (prefers-reduced-transparency: no-preference) {
+    .tabs {
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
     }
   }
 </style>

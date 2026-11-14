@@ -27,7 +27,8 @@ async function blockApis(context: BrowserContext): Promise<void> {
 /** The state of the active service worker once one is registered. */
 const swState = (page: Page) => page.evaluate(async () => (await navigator.serviceWorker.ready).active?.state);
 
-const gipitChip = (page: Page) => page.getByText(/Gipit day ·/);
+// The chip (a button); the ridge also labels the gipit day, but that label is decoration.
+const gipitChip = (page: Page) => page.getByRole('button', { name: /Gipit day ·/ });
 
 let leaked: string[];
 
@@ -148,7 +149,7 @@ test.describe('smoke', () => {
       short_name: 'Lantaw',
       description: 'See your money months ahead.',
       theme_color: '#0E2A3A',
-      background_color: '#0B2230',
+      background_color: '#06121A',
       display: 'standalone',
     });
     expect(manifest.icons).toEqual(

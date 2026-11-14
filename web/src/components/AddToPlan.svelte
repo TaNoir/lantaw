@@ -230,7 +230,7 @@
     border-color: var(--teal);
   }
   .choice.whatif .c-title {
-    font-style: italic;
+    color: var(--muted);
   }
   .choice:disabled {
     cursor: progress;

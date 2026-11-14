@@ -244,9 +244,10 @@
   }
   h1 {
     margin: 0;
-    font-size: 1.75rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
+    font-size: clamp(2.25rem, 6vw, 2.75rem);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
   }
   h1:focus {
     outline: none;
@@ -367,13 +368,13 @@
   .count {
     color: var(--text);
     font-weight: 700;
-    font-style: italic;
+    color: var(--muted);
   }
 
   .card {
     min-width: 0;
     padding: 14px 16px 4px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
   }
@@ -385,7 +386,7 @@
 
   .none {
     padding: 24px 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     border: 1px dashed var(--border);
     text-align: center;
   }
@@ -414,7 +415,7 @@
     max-width: 34rem;
     margin: 8px 0 24px;
     padding: 20px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
   }
@@ -435,7 +436,7 @@
   }
   .side .quick {
     padding: 14px 16px 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
   }

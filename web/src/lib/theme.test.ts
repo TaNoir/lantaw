@@ -24,17 +24,17 @@ describe('theme', () => {
     applyTheme('light', false, doc);
     expect(dataset.theme).toBe('light');
     expect(meta.content).toBe(THEME_COLORS.light);
-    expect(THEME_COLORS.light).toBe('#F6F3EC');
+    expect(THEME_COLORS.light).toBe('#BCD3DE');
     applyTheme('dark', true, doc);
     expect(dataset.theme).toBe('dark');
-    expect(meta.content).toBe('#0B2230');
+    expect(meta.content).toBe('#06121A');
   });
 
   it('System removes data-theme and follows the OS for the meta colour', () => {
     const { doc, dataset, meta } = fakeDoc('dark');
     applyTheme('system', true, doc);
     expect('theme' in dataset).toBe(false);
-    expect(meta.content).toBe('#F6F3EC');
+    expect(meta.content).toBe('#BCD3DE');
   });
 });
 

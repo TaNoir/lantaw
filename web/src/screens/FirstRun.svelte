@@ -655,10 +655,10 @@
 
   h1 {
     margin: 0;
-    font-size: 1.75rem;
-    font-weight: 800;
+    font-size: 1.875rem;
+    font-weight: 400;
     line-height: 1.15;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.035em;
     text-wrap: balance;
   }
   h1:focus {
@@ -722,9 +722,10 @@
     letter-spacing: -0.04em;
   }
   .intro h1 {
-    font-size: clamp(2rem, 9vw, 2.5rem);
-    line-height: 1.08;
-    letter-spacing: -0.035em;
+    font-size: clamp(2.5rem, 11vw, 3.25rem);
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
   }
   .intro .lede {
     margin: 0;
@@ -838,7 +839,7 @@
     gap: 6px;
     min-height: 64px;
     padding: 0 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     border: 1.5px solid var(--border);
     background: var(--surface);
     font-size: 2rem;
@@ -972,7 +973,7 @@
 
   .extra {
     padding: 12px 12px 14px 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     border: 1px solid var(--border);
     background: var(--surface);
   }

@@ -1,56 +1,144 @@
-/* Design tokens. Dark is the default; light follows the system unless data-theme is set. */
+/* Design tokens: Horizon. Night is the default; Day follows the system unless data-theme is set.
+   The scene (sky, ranges, ridge) is part of the token set so every screen shares one landscape. */
 :root {
-  --bg: #0b2230;
-  --surface: #0e2a3a;
+  --bg: #071821;
+  /* Surfaces are panes of glass over the sky, so cards on every screen float like the Timeline's panel. */
+  --surface: rgba(9, 28, 39, 0.66);
+  --surface-2: rgba(244, 241, 234, 0.07);
+  --border: rgba(244, 241, 234, 0.12);
   --text: #f4f1ea;
   --muted: #a9bcc6;
+  --muted-2: #8fa6b2;
   --teal: #3fb8af;
   --mango: #f4a940;
   --coral: #e8604c;
   --sand: #f4f1ea;
-  --surface-2: #183b4c;
-  --border: #1d4152;
   --teal-text: #7fd8cf;
   --coral-text: #f39a8b;
+  --mango-text: #f6bd6a;
   --on-mango: #10222e;
+
+  /* Floating chrome over the scene. */
+  --glass: rgba(8, 26, 36, 0.62);
+  --glass-solid: rgba(10, 30, 41, 0.94);
+  --glass-line: rgba(244, 241, 234, 0.1);
+  --glass-hover: rgba(244, 241, 234, 0.08);
+  --pill-on: #f4f1ea;
+  --on-pill: #0e2a3a;
+  --shadow-float: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
+
+  /* The scene. */
+  --sky: radial-gradient(70% 34% at 68% 62%, rgba(244, 169, 64, 0.2), transparent 70%),
+    radial-gradient(90% 46% at 28% 66%, rgba(63, 184, 175, 0.1), transparent 70%),
+    linear-gradient(180deg, #06121a 0%, #0b2231 36%, #173c4c 58%, #24485a 66%, #0e2a3a 100%);
+  --range-far-top: #2b5366;
+  --range-far-bottom: #1a3d4f;
+  --range-far-opacity: 0.55;
+  --range-mid-top: #1b4052;
+  --range-mid-bottom: #11303f;
+  --haze: #24485a;
+  --ridge-top: #0f2f3f;
+  --ridge-mid: #0a2230;
+  --ridge-bottom: #061219;
+  --rim-start: rgba(244, 241, 234, 0.55);
+  --rim-mid: rgba(244, 241, 234, 0.92);
+  --rim-end: rgba(244, 169, 64, 0.85);
+  --land-label: #f39a8b;
 
   --font: 'Manrope Variable', system-ui, sans-serif;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;
   --space-4: 24px;
-  --radius: 12px;
+  --radius: 14px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --topbar: 72px;
   color-scheme: dark;
 }
 
+/* Day: the same view in morning light. */
 :root[data-theme='light'] {
-  --bg: #f6f3ec;
-  --surface: #ffffff;
+  --bg: #eef0ec;
+  --surface: rgba(255, 255, 255, 0.84);
+  --surface-2: rgba(16, 34, 46, 0.055);
+  --border: rgba(16, 34, 46, 0.12);
   --text: #10222e;
-  --muted: #5a707b;
+  --muted: #3f545e;
+  --muted-2: #4a5f69;
   --teal: #1f8a84;
   --mango: #c9790f;
   --coral: #c9472f;
-  --surface-2: #eef3f2;
-  --border: #e2ded4;
-  --teal-text: #17736e;
-  --coral-text: #b23e28;
+  --teal-text: #0d5f5a;
+  --coral-text: #9c2f1b;
+  --mango-text: #9a5c06;
+  --on-mango: #ffffff;
+
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-solid: rgba(255, 255, 255, 0.95);
+  --glass-line: rgba(16, 34, 46, 0.09);
+  --glass-hover: rgba(16, 34, 46, 0.05);
+  --pill-on: #0e2a3a;
+  --on-pill: #f4f1ea;
+  --shadow-float: 0 22px 50px -26px rgba(16, 34, 46, 0.35);
+
+  --sky: radial-gradient(70% 34% at 68% 60%, rgba(244, 169, 64, 0.22), transparent 70%),
+    linear-gradient(180deg, #bcd3de 0%, #d6e4e9 34%, #eaeee9 56%, #f4eee2 64%, #eef0ec 100%);
+  --range-far-top: #b9ced8;
+  --range-far-bottom: #d3e0e4;
+  --range-far-opacity: 0.75;
+  --range-mid-top: #bccfd7;
+  --range-mid-bottom: #d3dfe3;
+  --haze: #f2ede2;
+  --ridge-top: #cdbf9e;
+  --ridge-mid: #c8ba98;
+  --ridge-bottom: #d2c7ab;
+  --rim-start: rgba(14, 42, 58, 0.6);
+  --rim-mid: rgba(14, 42, 58, 0.95);
+  --rim-end: rgba(201, 121, 15, 0.95);
+  --land-label: #7f200c;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg: #f6f3ec;
-    --surface: #ffffff;
+    --bg: #eef0ec;
+    --surface: rgba(255, 255, 255, 0.84);
+    --surface-2: rgba(16, 34, 46, 0.055);
+    --border: rgba(16, 34, 46, 0.12);
     --text: #10222e;
-    --muted: #5a707b;
+    --muted: #3f545e;
+    --muted-2: #4a5f69;
     --teal: #1f8a84;
     --mango: #c9790f;
     --coral: #c9472f;
-    --surface-2: #eef3f2;
-    --border: #e2ded4;
-    --teal-text: #17736e;
-    --coral-text: #b23e28;
+    --teal-text: #0d5f5a;
+    --coral-text: #9c2f1b;
+    --mango-text: #9a5c06;
+    --on-mango: #ffffff;
+
+    --glass: rgba(255, 255, 255, 0.66);
+    --glass-solid: rgba(255, 255, 255, 0.95);
+    --glass-line: rgba(16, 34, 46, 0.09);
+    --glass-hover: rgba(16, 34, 46, 0.05);
+    --pill-on: #0e2a3a;
+    --on-pill: #f4f1ea;
+    --shadow-float: 0 22px 50px -26px rgba(16, 34, 46, 0.35);
+
+    --sky: radial-gradient(70% 34% at 68% 60%, rgba(244, 169, 64, 0.22), transparent 70%),
+      linear-gradient(180deg, #bcd3de 0%, #d6e4e9 34%, #eaeee9 56%, #f4eee2 64%, #eef0ec 100%);
+    --range-far-top: #b9ced8;
+    --range-far-bottom: #d3e0e4;
+    --range-far-opacity: 0.75;
+    --range-mid-top: #bccfd7;
+    --range-mid-bottom: #d3dfe3;
+    --haze: #f2ede2;
+    --ridge-top: #cdbf9e;
+    --ridge-mid: #c8ba98;
+    --ridge-bottom: #d2c7ab;
+    --rim-start: rgba(14, 42, 58, 0.6);
+    --rim-mid: rgba(14, 42, 58, 0.95);
+    --rim-end: rgba(201, 121, 15, 0.95);
+    --land-label: #7f200c;
     color-scheme: light;
   }
 }

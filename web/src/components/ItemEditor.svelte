@@ -788,7 +788,7 @@
     padding: 0;
     border: 0;
     border-radius: 22px 22px 0 0;
-    background: var(--surface);
+    background: var(--glass-solid);
     color: var(--text);
     box-shadow: 0 -16px 48px rgb(3 12 18 / 0.45);
     overflow: hidden;

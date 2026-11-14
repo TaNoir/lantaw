@@ -189,7 +189,7 @@
   .card {
     min-width: 0;
     padding: 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
   }
@@ -252,7 +252,7 @@
   }
   .whatif .lane-name,
   .whatif .lane-note {
-    font-style: italic;
+    color: var(--muted);
   }
   .track {
     position: relative;

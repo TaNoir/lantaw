@@ -9,7 +9,7 @@ import type { AppSettings } from './db';
 
 export type Theme = AppSettings['theme'];
 
-export const THEME_COLORS = { dark: '#0B2230', light: '#F6F3EC' } as const;
+export const THEME_COLORS = { dark: '#06121A', light: '#BCD3DE' } as const;
 
 const STORE_KEY = 'lantaw-theme';
 const LIGHT_QUERY = '(prefers-color-scheme: light)';

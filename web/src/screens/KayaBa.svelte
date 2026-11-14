@@ -456,9 +456,10 @@
   }
   h1 {
     margin: 0;
-    font-size: 1.75rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
+    font-size: clamp(2.25rem, 6vw, 2.75rem);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
   }
   .lede {
     margin: 2px 0 0;
@@ -490,7 +491,7 @@
   .card {
     min-width: 0;
     padding: 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
   }
@@ -835,7 +836,7 @@
 
   .bestcard {
     padding: 14px 16px 16px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: color-mix(in srgb, var(--mango) 10%, var(--surface));
     border: 1.5px solid color-mix(in srgb, var(--mango) 70%, transparent);
   }

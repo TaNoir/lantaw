@@ -149,7 +149,7 @@
   }
   .skeleton {
     height: 220px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%) 0 0 / 300% 100%;
     animation: shimmer 1.4s linear infinite;
   }
@@ -162,7 +162,7 @@
     max-width: 32rem;
     margin: 32px 16px;
     padding: 18px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: color-mix(in srgb, var(--coral) 9%, var(--surface));
     border: 1px solid color-mix(in srgb, var(--coral) 45%, transparent);
   }
