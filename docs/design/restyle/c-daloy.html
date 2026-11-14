@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantaw · Daloy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --ink: #10222e;
+    --muted: #586d77;
+    --line: #e8e5dd;
+    --dot: #dcd8ce;
+    --night: #0e2a3a;
+    --teal: #1f8a84; --teal-soft: #dff1ee; --teal-ink: #135e5a;
+    --mango: #f4a940; --mango-soft: #fdefd8; --mango-ink: #8a5206;
+    --coral: #c9472f; --coral-soft: #fbe4de; --coral-ink: #9a3320;
+    --violet: #5b55b0; --violet-soft: #ebeaf8; --violet-ink: #423d8f;
+    --sky-soft: #e3eef6; --sky-ink: #2c5d80;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 500 14px/1.45 'Manrope', system-ui, sans-serif; font-feature-settings: 'tnum' 1; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--mango-soft); }
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 10px; }
+
+  header { display: flex; align-items: center; gap: 28px; padding: 0 32px; height: 64px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; }
+  header nav { display: flex; gap: 4px; height: 100%; }
+  header nav a { display: flex; align-items: center; padding: 0 12px; color: var(--muted); text-decoration: none; font-weight: 650; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  header nav a:hover { color: var(--ink); }
+  header nav a[aria-current] { color: var(--ink); border-bottom-color: var(--ink); }
+  .private { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 600; }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 24px 32px 48px; }
+
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; scrollbar-width: none; }
+  .strip button {
+    flex: none; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px;
+    padding: 9px 14px 10px; cursor: pointer; font: inherit; color: var(--ink); min-width: 128px;
+    transition: border-color .2s, transform .2s var(--ease);
+  }
+  .strip button:hover { border-color: #cfcabe; }
+  .strip .when { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+  .strip .st { width: 7px; height: 7px; border-radius: 9px; background: var(--teal); }
+  .strip .st.tight { background: var(--mango); }
+  .strip .st.low { background: var(--coral); }
+  .strip .end { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .strip button[aria-pressed='true'] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .strip button[aria-pressed='true'] .end { color: #b8c6cd; }
+
+  .lede { font-size: 22px; line-height: 1.6; font-weight: 600; letter-spacing: -0.015em; max-width: 60ch; margin: 18px 0 20px; color: var(--muted); }
+  .lede .chip { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 1px; border-radius: 10px; color: var(--ink); font-weight: 700; white-space: nowrap; line-height: 1.5; }
+  .lede .chip svg { margin-top: 1px; }
+  .c-in { background: var(--teal-soft); color: var(--teal-ink) !important; }
+  .c-out { background: var(--mango-soft); color: var(--mango-ink) !important; }
+  .c-keep { background: var(--ink); color: #fff !important; }
+  .c-warn { background: var(--coral-soft); color: var(--coral-ink) !important; }
+
+  .canvas {
+    position: relative; border: 1px solid var(--line); border-radius: 22px; overflow: hidden;
+    background-color: var(--surface);
+    background-image: radial-gradient(var(--dot) 1.1px, transparent 1.2px);
+    background-size: 22px 22px; background-position: 11px 11px;
+    padding: 36px 40px;
+    display: grid; grid-template-columns: 240px 1fr 1.25fr; gap: 0 72px; align-items: center;
+  }
+  .canvas svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .col { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
+  .col.right { gap: 12px; }
+  .node { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,34,46,.05), 0 8px 24px -16px rgba(16,34,46,.18); }
+  .node .h { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-weight: 750; font-size: 13.5px; }
+  .node .h .t { margin-left: auto; font-weight: 700; }
+  .node .b { padding: 6px 12px 10px; }
+  .node .big { font-size: 26px; font-weight: 750; letter-spacing: -0.03em; padding: 10px 14px 2px; }
+  .node .note { color: var(--muted); font-size: 12.5px; padding: 0 14px 12px; }
+  .node ul { list-style: none; margin: 0; padding: 0; }
+  .node li { display: grid; grid-template-columns: 46px 1fr auto; gap: 8px; padding: 3px 0; font-size: 13px; }
+  .node li .d { color: var(--muted); font-weight: 600; font-size: 12px; padding-top: 1px; }
+  .node li .s { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: 4px; }
+  .node li .a { font-weight: 650; }
+  .pool { border-color: var(--ink); }
+  .pool .h { background: var(--ink); color: #fff; }
+  .keep { border: 1.5px solid var(--teal); }
+  .keep .h { background: var(--teal); color: #fff; }
+
+  .year { margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px 12px; }
+  .year .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .year h2 { margin: 0; font-size: 14px; font-weight: 750; }
+  .year .row span { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+  .year svg { display: block; width: 100%; margin-top: 8px; cursor: pointer; }
+  .year .ax { font: 600 11px 'Manrope'; fill: var(--muted); }
+
+  @media (max-width: 900px) {
+    header { padding: 0 16px; gap: 12px; }
+    header nav { position: fixed; z-index: 9; left: 0; right: 0; bottom: 0; height: 60px; background: var(--surface); border-top: 1px solid var(--line); justify-content: space-around; }
+    header nav a { border: 0; font-size: 12.5px; padding: 0 6px; }
+    header nav a[aria-current] { color: var(--teal); }
+    .private span { display: none; }
+    main { padding: 14px 16px 88px; }
+    .lede { font-size: 18px; }
+    .canvas { grid-template-columns: 1fr; padding: 18px 14px; gap: 26px; }
+    .canvas svg.wires { display: none; }
+    .col { gap: 10px; }
+    .col::after { content: ''; display: block; position: absolute; left: 50%; bottom: -26px; height: 26px; border-left: 1.5px dashed #c9c4b8; }
+    .col.right::after { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span id="logo"></span>Lantaw</div>
+  <nav aria-label="Main"><a href="#">Timeline</a><a href="#" aria-current="page">Cutoffs</a><a href="#">Plans</a><a href="#">Kaya ba?</a><a href="#">Items</a></nav>
+  <div class="private"><span id="lock"></span><span>Only on this device</span></div>
+</header>
+<main>
+  <div class="strip" id="strip" role="group" aria-label="Choose a cutoff"></div>
+  <p class="lede" id="lede" aria-live="polite"></p>
+  <section class="canvas" id="canvas" aria-label="Where this cutoff's money goes">
+    <svg class="wires" id="wires"></svg>
+    <div class="col" id="left"></div>
+    <div class="col" id="mid"></div>
+    <div class="col right" id="right"></div>
+  </section>
+  <section class="year" aria-label="The whole year">
+    <div class="row"><h2>The whole year</h2><span>Tap a stretch to open that cutoff</span></div>
+    <svg id="yr"></svg>
+  </section>
+</main>
+
+<script src="sim.js"></script>
+<script src="icons.js"></script>
+<script>
+  const L = LANTAW, $ = (id) => document.getElementById(id);
+  $('logo').innerHTML = LOGO(28);
+  $('lock').innerHTML = icon('lock', 16);
+  const GROUPS = [
+    { id: 'food', t: 'Home & food', ic: 'home', bg: 'var(--mango-soft)', fg: 'var(--mango-ink)', wire: '#f4a940', names: ['Rent', 'Pamalengke', 'Baon & pamasahe'] },
+    { id: 'bills', t: 'Bills', ic: 'bolt', bg: 'var(--sky-soft)', fg: 'var(--sky-ink)', wire: '#7ea6c4', names: ['Davao Light', 'DCWD', 'Converge', 'Globe postpaid', 'Netflix', 'ChatGPT'] },
+    { id: 'hulog', t: 'Hulog', ic: 'card', bg: 'var(--violet-soft)', fg: 'var(--violet-ink)', wire: '#8e89d0', names: ['Home Credit phone', 'SPayLater'] },
+    { id: 'pal', t: 'Paluwagan', ic: 'users', bg: 'var(--teal-soft)', fg: 'var(--teal-ink)', wire: '#6cbcb4', names: ['Paluwagan'] },
+    { id: 'fam', t: 'Padala', ic: 'heart', bg: 'var(--coral-soft)', fg: 'var(--coral-ink)', wire: '#e59a8a', names: ['Padala sa ginikanan'] },
+    { id: 'once', t: 'One-offs', ic: 'gift', bg: 'var(--coral-soft)', fg: 'var(--coral-ink)', wire: '#e59a8a', names: ['Pasko gifts', 'Tuition'] },
+  ];
+  const BUFFER = 3000;
+  let sel = 0;
+  const range = (a, b) => a.getUTCMonth() === b.getUTCMonth() ? `${L.short(a)}–${b.getUTCDate()}` : `${L.short(a)} – ${L.short(b)}`;
+  const status = (c) => (c.low.balance < BUFFER ? 'low' : c.low.balance < BUFFER * 2 ? 'tight' : '');
+
+  $('strip').innerHTML = L.cutoffs.slice(0, 24).map((c, i) =>
+    `<button data-i="${i}" aria-pressed="${i === sel}"><div class="when"><span class="st ${status(c)}"></span>${range(c.start, c.end)}</div><div class="end">ends ${L.peso(c.endBal)}</div></button>`).join('');
+  $('strip').onclick = (e) => { const b = e.target.closest('button'); if (b) select(+b.dataset.i); };
+
+  function sub(e) {
+    if (e.movedFrom) return `from ${L.fmt(e.movedFrom, { weekday: 'short' })}`;
+    if (e.k) return `${e.k}/${e.n}`;
+    return '';
+  }
+  const rowHTML = (e) => `<li><span class="d">${L.short(e.date)}</span><span>${e.name}<span class="s">${sub(e)}</span></span><span class="a">${L.peso(Math.abs(e.amount))}</span></li>`;
+
+  function select(i) {
+    sel = i;
+    document.querySelectorAll('#strip button').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.i === i));
+    const c = L.cutoffs[i];
+    const ins = c.events.filter((e) => e.amount > 0);
+    const outs = c.events.filter((e) => e.amount < 0);
+    const inSum = ins.reduce((s, e) => s + e.amount, 0);
+    const outSum = -outs.reduce((s, e) => s + e.amount, 0);
+    const lowNote = c.low.balance < BUFFER ? ` Heads up: it dips to <span class="chip c-warn">${L.peso(c.low.balance)}</span> on ${L.short(c.low.date)}.` : '';
+    $('lede').innerHTML = `From ${range(c.start, c.end)}, you get <span class="chip c-in">${icon('down', 15)}${L.peso(inSum)}</span>, pay out <span class="chip c-out">${outs.length} items · ${L.peso(outSum)}</span>, and carry <span class="chip c-keep">${L.peso(c.endBal)}</span> into the next cutoff.${lowNote}`;
+
+    $('left').innerHTML =
+      `<div class="node" data-w="${c.startBal}" id="n-carry"><div class="h">${icon('wallet', 16)}Carried in</div><div class="big">${L.peso(c.startBal)}</div><div class="note">Balance on ${L.short(new Date(c.start.getTime() - 864e5))}</div></div>` +
+      ins.map((e, k) => `<div class="node" data-w="${e.amount}" id="n-in${k}"><div class="h" style="background:var(--teal-soft);color:var(--teal-ink)">${icon(e.name.startsWith('Paluwagan') ? 'users' : e.name === '13th month' ? 'gift' : 'peso', 16)}${e.name}</div><div class="big">+${L.peso(e.amount)}</div><div class="note">${L.fmt(e.date, { weekday: 'short', month: 'short', day: 'numeric' })}${e.movedFrom ? ` · moved from ${L.fmt(e.movedFrom, { weekday: 'short' })} ${L.short(e.movedFrom)}` : ''}</div></div>`).join('');
+
+    $('mid').innerHTML = `<div class="node pool" id="n-pool"><div class="h">${icon('cutoffs', 16)}This cutoff</div><div class="big">${L.peso(c.startBal + inSum)}</div><div class="note">to cover ${outs.length} items from ${range(c.start, c.end)}</div></div>`;
+
+    const groups = GROUPS.map((g) => ({ ...g, evs: outs.filter((e) => g.names.includes(e.name)) })).filter((g) => g.evs.length);
+    $('right').innerHTML = groups.map((g) => {
+      const tot = -g.evs.reduce((s, e) => s + e.amount, 0);
+      return `<div class="node" id="n-${g.id}" data-w="${tot}" data-wire="${g.wire}"><div class="h" style="background:${g.bg};color:${g.fg}">${icon(g.ic, 16)}${g.t}<span class="t">${L.peso(tot)}</span></div><div class="b"><ul>${g.evs.slice(0, 4).map(rowHTML).join('')}${g.evs.length > 4 ? `<li><span></span><span style="color:var(--muted)">and ${g.evs.length - 4} more</span><span></span></li>` : ''}</ul></div></div>`;
+    }).join('') +
+      `<div class="node keep" id="n-keep" data-w="${Math.max(0, c.endBal)}" data-wire="#1f8a84"><div class="h">${icon('right', 16)}Carried to next cutoff<span class="t">${L.peso(c.endBal)}</span></div></div>`;
+
+    requestAnimationFrame(wires);
+    drawYear();
+  }
+
+  function wires() {
+    const svg = $('wires');
+    if (getComputedStyle(svg).display === 'none') return;
+    const box = $('canvas').getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+    const pool = $('n-pool').getBoundingClientRect();
+    const total = [...document.querySelectorAll('#right .node')].reduce((s, n) => s + +n.dataset.w, 0) || 1;
+    const width = (w) => Math.max(2, (w / total) * 46);
+    const curve = (x1, y1, x2, y2) => { const m = (x1 + x2) / 2; return `M${x1} ${y1} C${m} ${y1} ${m} ${y2} ${x2} ${y2}`; };
+    let out = '';
+    document.querySelectorAll('#left .node').forEach((n) => {
+      const r = n.getBoundingClientRect();
+      out += `<path d="${curve(r.right - box.left, r.top + r.height / 2 - box.top, pool.left - box.left, pool.top + pool.height / 2 - box.top)}" stroke="#6cbcb4" stroke-opacity=".55" stroke-width="${width(+n.dataset.w)}" fill="none" stroke-linecap="round"/>`;
+    });
+    let off = -[...document.querySelectorAll('#right .node')].reduce((s, n) => s + width(+n.dataset.w), 0) / 2;
+    document.querySelectorAll('#right .node').forEach((n) => {
+      const r = n.getBoundingClientRect(), w = width(+n.dataset.w);
+      const y0 = pool.top + pool.height / 2 - box.top + off + w / 2; off += w;
+      out += `<path d="${curve(pool.right - box.left, y0, r.left - box.left, r.top + 20 - box.top)}" stroke="${n.dataset.wire}" stroke-opacity=".5" stroke-width="${w}" fill="none"/>`;
+    });
+    svg.innerHTML = out;
+  }
+
+  function drawYear() {
+    const svg = $('yr'), W = svg.clientWidth || 800, H = 92, days = L.days, N = days.length;
+    const hi = Math.max(...days.map((d) => d.balance)) * 1.05;
+    const x = (i) => (i / (N - 1)) * W, y = (v) => 8 + (1 - v / hi) * (H - 30);
+    const c = L.cutoffs[sel];
+    const a = days.findIndex((d) => +d.date === +c.start), b = days.findIndex((d) => +d.date === +c.end);
+    const line = days.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(d.balance).toFixed(1)}`).join(' ');
+    let ax = '';
+    days.forEach((d, i) => { if (d.date.getUTCDate() === 1 && (W > 600 || d.date.getUTCMonth() % 2 === 0)) ax += `<text class="ax" x="${x(i)}" y="${H - 4}" text-anchor="middle">${L.fmt(d.date, { month: 'short' })}</text>`; });
+    const gi = days.indexOf(L.gipit);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
+    svg.innerHTML = `<rect x="${x(a)}" y="0" width="${Math.max(3, x(b) - x(a))}" height="${H - 20}" rx="6" fill="#10222e" fill-opacity=".07"/>
+      <path d="${line} L${W} ${y(0)} L0 ${y(0)} Z" fill="#1f8a84" fill-opacity=".1"/>
+      <path d="${line}" stroke="#1f8a84" stroke-width="1.4" fill="none"/>
+      <line x1="0" x2="${W}" y1="${y(BUFFER)}" y2="${y(BUFFER)}" stroke="#c9472f" stroke-dasharray="1.5 4" stroke-linecap="round"/>
+      <circle cx="${x(gi)}" cy="${y(L.gipit.balance)}" r="4" fill="#c9472f" stroke="#fff" stroke-width="1.5"><title>Gipit day · ${L.short(L.gipit.date)}</title></circle>${ax}`;
+    svg.onclick = (e) => {
+      const r = svg.getBoundingClientRect(), t = days[Math.round(((e.clientX - r.left) / r.width) * (N - 1))].date;
+      const k = L.cutoffs.findIndex((c) => t >= c.start && t <= c.end);
+      if (k >= 0) { select(k); document.querySelector(`#strip button[data-i="${k}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); }
+    };
+  }
+
+  addEventListener('resize', () => { wires(); drawYear(); });
+  document.fonts.ready.then(() => select(sel));
+  select(0);
+</script>
+</body>
+</html>

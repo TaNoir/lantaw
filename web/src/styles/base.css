@@ -13,7 +13,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--bg);
+  /* No background: html carries --bg, and the fixed .sky sits between them. */
   color: var(--text);
   font-size: 1rem;
   line-height: 1.5;
@@ -22,8 +22,26 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--teal);
+  outline: 2px solid var(--mango);
   outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--mango) 35%, transparent);
+  color: var(--text);
+}
+
+html {
+  scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent;
+}
+
+/* The sky behind every screen. Fixed, so pages scroll over one unchanging view. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--sky);
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

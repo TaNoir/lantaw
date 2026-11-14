@@ -871,9 +871,10 @@
   }
   h1 {
     margin: 0 0 12px;
-    font-size: 1.75rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
+    font-size: clamp(2.25rem, 6vw, 2.75rem);
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
   }
   h1:focus {
     outline: none;
@@ -902,7 +903,7 @@
   .card {
     min-width: 0;
     padding: 14px 16px 6px;
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
   }

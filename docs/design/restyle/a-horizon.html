@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantaw · Horizon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky-top: #07141c;
+    --night: #0e2a3a;
+    --deep: #071821;
+    --sand: #f4f1ea;
+    --mist: #a9bcc6;
+    --mist-2: #7f98a5;
+    --mango: #f4a940;
+    --teal: #3fb8af;
+    --teal-text: #7fd8cf;
+    --coral: #e8604c;
+    --coral-text: #f39a8b;
+    --glass: rgba(10, 30, 41, 0.58);
+    --line: rgba(244, 241, 234, 0.09);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--sky-top);
+    color: var(--sand);
+    font-family: 'Manrope', system-ui, sans-serif;
+    font-feature-settings: 'tnum' 1;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::selection { background: rgba(244, 169, 64, 0.35); color: var(--sand); }
+  :focus-visible { outline: 2px solid var(--mango); outline-offset: 3px; border-radius: 8px; }
+
+  /* The view: sky, Mt. Apo range, and the forecast drawn as the nearest ridge. */
+  .view { position: fixed; inset: 0; touch-action: none; cursor: ew-resize; }
+  .view svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .sky { background:
+      radial-gradient(70% 38% at 68% 58%, rgba(244, 169, 64, 0.20), transparent 70%),
+      radial-gradient(90% 50% at 30% 62%, rgba(63, 184, 175, 0.10), transparent 70%),
+      linear-gradient(180deg, #06121a 0%, #0b2231 38%, #173c4c 58%, #24485a 64%, #0e2a3a 100%);
+    position: fixed; inset: 0; }
+
+  /* Top bar */
+  header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 32px; pointer-events: none;
+  }
+  header > * { pointer-events: auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+  nav.tabs {
+    display: flex; gap: 2px; padding: 4px;
+    background: rgba(7, 20, 28, 0.42); border: 1px solid var(--line);
+    border-radius: 999px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  nav.tabs a {
+    color: var(--mist); text-decoration: none; font-size: 14px; font-weight: 600;
+    padding: 8px 16px; border-radius: 999px; transition: color .2s, background .2s;
+  }
+  nav.tabs a:hover { color: var(--sand); }
+  nav.tabs a[aria-current] { background: var(--sand); color: var(--night); }
+  .private { display: flex; align-items: center; gap: 8px; color: var(--mist); font-size: 13px; font-weight: 500; }
+
+  /* Readout */
+  .readout { position: fixed; z-index: 4; left: 48px; top: 112px; max-width: 560px; pointer-events: none; }
+  .when { color: var(--mist); font-size: 15px; font-weight: 500; }
+  .when b { color: var(--sand); font-weight: 600; }
+  .balance {
+    font-size: clamp(64px, 8.4vw, 118px); font-weight: 220; letter-spacing: -0.045em; line-height: 1;
+    margin: 10px 0 18px; white-space: nowrap;
+  }
+  .balance .cur { font-weight: 300; color: var(--mist); margin-right: 0.04em; font-size: 0.62em; vertical-align: 0.42em; }
+  .balance .cents { color: var(--mist-2); font-size: 0.42em; vertical-align: 0.95em; margin-left: 0.06em; letter-spacing: -0.02em; }
+  .story { font-size: 16px; line-height: 1.55; color: var(--mist); max-width: 46ch; min-height: 3.1em; }
+  .story strong { color: var(--sand); font-weight: 600; }
+  .story .in { color: var(--teal-text); font-weight: 600; }
+  .story .out { color: var(--sand); font-weight: 600; }
+
+  /* Cutoff panel, floating over the range */
+  aside.cutoff {
+    position: fixed; z-index: 4; right: 32px; top: 88px; width: 352px;
+    max-height: calc(100vh - 88px - 156px); display: flex; flex-direction: column;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 20px;
+    backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2);
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.55);
+  }
+  .cutoff-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+  .cutoff-head .row { display: flex; align-items: center; justify-content: space-between; }
+  .cutoff-head h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .cutoff-head .nav { display: flex; gap: 4px; }
+  .icon-btn {
+    width: 30px; height: 30px; display: grid; place-items: center; border-radius: 999px;
+    border: 0; background: transparent; color: var(--mist); cursor: pointer;
+  }
+  .icon-btn:hover { background: rgba(244, 241, 234, 0.08); color: var(--sand); }
+  .flow { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--mist); }
+  .flow b { color: var(--sand); font-weight: 600; font-size: 15px; }
+  .rows { overflow: auto; padding: 6px 8px 10px; scrollbar-width: thin; scrollbar-color: rgba(244,241,234,.18) transparent; }
+  .r {
+    display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: baseline;
+    padding: 9px 12px; border-radius: 12px; transition: background .25s var(--ease);
+  }
+  .r .d { color: var(--mist-2); font-size: 12.5px; font-weight: 600; }
+  .r .n { font-size: 14px; font-weight: 600; }
+  .r .s { display: block; color: var(--mist-2); font-size: 12px; font-weight: 500; margin-top: 2px; }
+  .r .a { font-size: 14px; font-weight: 600; }
+  .r .a.pos { color: var(--teal-text); }
+  .r.on { background: rgba(244, 169, 64, 0.12); }
+  .r.on .d { color: var(--mango); }
+  .r.past { opacity: 0.45; }
+
+  /* Windy-style time bar */
+  .bar {
+    position: fixed; z-index: 5; left: 32px; right: 32px; bottom: 24px;
+    display: flex; align-items: center; gap: 16px; padding: 10px 14px 10px 10px;
+    background: rgba(7, 20, 28, 0.62); border: 1px solid var(--line); border-radius: 999px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  .play {
+    flex: none; width: 44px; height: 44px; border-radius: 999px; border: 0; cursor: pointer;
+    background: var(--mango); color: #10222e; display: grid; place-items: center;
+    transition: transform .2s var(--ease);
+  }
+  .play:hover { transform: scale(1.05); }
+  .play:active { transform: scale(0.96); }
+  .track { position: relative; flex: 1; height: 44px; cursor: pointer; }
+  .track .rail { position: absolute; left: 0; right: 0; top: 13px; height: 4px; border-radius: 4px; background: rgba(244,241,234,.1); }
+  .track .fill { position: absolute; left: 0; top: 13px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, rgba(244,169,64,.35), var(--mango)); }
+  .track .tick { position: absolute; top: 11px; width: 1px; height: 8px; background: rgba(244,241,234,.22); }
+  .track .mark { position: absolute; top: 10px; width: 10px; height: 10px; margin-left: -5px; border-radius: 99px; border: 2px solid #0b2231; }
+  .track .months { position: absolute; left: 0; right: 0; top: 24px; height: 18px; }
+  .track .months span { position: absolute; transform: translateX(-50%); font-size: 11.5px; font-weight: 600; color: var(--mist-2); white-space: nowrap; }
+  .track .months span.yr { color: var(--mist); }
+  .handle {
+    position: absolute; top: -24px; transform: translateX(-50%);
+    background: var(--sand); color: var(--night); font-size: 12px; font-weight: 700;
+    padding: 4px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+    box-shadow: 0 6px 16px -6px rgba(0,0,0,.6);
+  }
+  .handle::after { content: ''; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; background: var(--sand); transform: translateX(-50%) rotate(45deg); border-radius: 1px; }
+  .seg { flex: none; display: flex; padding: 3px; border-radius: 999px; background: rgba(244,241,234,.06); }
+  .seg button { border: 0; background: transparent; color: var(--mist); font: 600 13px 'Manrope'; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+  .seg button[aria-pressed='true'] { background: rgba(244,241,234,.14); color: var(--sand); }
+
+  .label-svg { font-family: 'Manrope', sans-serif; font-feature-settings: 'tnum' 1; }
+
+  @media (max-width: 860px) {
+    body { overflow: auto; }
+    header { padding: 14px 16px; position: absolute; }
+    nav.tabs { position: fixed; left: 12px; right: 12px; bottom: 12px; justify-content: space-between; background: rgba(7,20,28,.82); }
+    nav.tabs a { padding: 10px 12px; font-size: 13px; }
+    .private span { display: none; }
+    .readout { position: absolute; left: 16px; right: 16px; top: 72px; }
+    .balance { font-size: 64px; margin: 6px 0 12px; }
+    .story { font-size: 15px; }
+    .view { position: absolute; height: 680px; }
+    .sky { position: absolute; height: 680px; }
+    .bar { position: absolute; top: 604px; bottom: auto; left: 12px; right: 12px; gap: 10px; }
+    .seg { display: none; }
+    aside.cutoff { position: relative; top: 0; right: 0; width: auto; max-height: none; margin: 692px 12px 84px; }
+  }
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<div class="view" id="view" aria-hidden="true">
+  <svg viewBox="0 0 1440 600" preserveAspectRatio="xMidYMax slice">
+    <defs>
+      <linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b5366"/><stop offset="1" stop-color="#1a3d4f"/></linearGradient>
+      <linearGradient id="mid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b4052"/><stop offset="1" stop-color="#11303f"/></linearGradient>
+      <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24485a" stop-opacity="0"/><stop offset="1" stop-color="#24485a" stop-opacity=".55"/></linearGradient>
+    </defs>
+    <!-- Far range with the twin summit of Mt. Apo -->
+    <path fill="url(#far)" opacity=".55" d="M0 392 C90 380 150 360 230 352 C320 342 380 330 450 318 C520 304 570 286 640 262 C690 246 720 226 752 214 L770 206 L786 218 L806 200 L824 196 L842 212 C880 236 930 252 990 270 C1060 290 1120 300 1190 318 C1270 338 1350 350 1440 362 L1440 600 L0 600 Z"/>
+    <rect x="0" y="300" width="1440" height="140" fill="url(#haze)"/>
+    <path fill="url(#mid)" d="M0 430 C80 420 140 398 210 392 C290 384 340 404 420 396 C500 388 560 356 640 350 C720 344 770 372 850 368 C940 364 990 334 1070 330 C1150 326 1220 358 1300 362 C1360 365 1400 360 1440 356 L1440 600 L0 600 Z"/>
+  </svg>
+  <svg id="ridge"></svg>
+</div>
+
+<header>
+  <div class="brand"><span id="logo"></span>Lantaw</div>
+  <nav class="tabs" aria-label="Main">
+    <a href="#" aria-current="page">Timeline</a><a href="#">Cutoffs</a><a href="#">Plans</a><a href="#">Kaya ba?</a><a href="#">Items</a>
+  </nav>
+  <div class="private"><span id="lock"></span><span>Only on this device</span></div>
+</header>
+
+<section class="readout" aria-live="polite">
+  <div class="when" id="when"></div>
+  <div class="balance" id="balance"></div>
+  <p class="story" id="story"></p>
+</section>
+
+<aside class="cutoff" aria-label="This cutoff">
+  <div class="cutoff-head">
+    <div class="row">
+      <h2 id="cut-title"></h2>
+      <div class="nav"><button class="icon-btn" id="prev" aria-label="Previous cutoff"></button><button class="icon-btn" id="next" aria-label="Next cutoff"></button></div>
+    </div>
+    <div class="flow" id="cut-flow"></div>
+  </div>
+  <div class="rows" id="rows"></div>
+</aside>
+
+<div class="bar">
+  <button class="play" id="play" aria-label="Play the year"></button>
+  <div class="track" id="track" role="slider" tabindex="0" aria-label="Day to look at">
+    <div class="rail"></div><div class="fill" id="fill"></div>
+    <div id="ticks"></div>
+    <div class="months" id="months"></div>
+    <div class="handle" id="handle"></div>
+  </div>
+  <div class="seg" role="group" aria-label="How far ahead"><button aria-pressed="true">12 mo</button><button aria-pressed="false">24 mo</button></div>
+</div>
+
+<script src="sim.js"></script>
+<script src="icons.js"></script>
+<script>
+  const L = LANTAW, days = L.days, N = days.length;
+  const $ = (id) => document.getElementById(id);
+  $('logo').innerHTML = LOGO(30);
+  $('lock').innerHTML = icon('lock', 16);
+  $('prev').innerHTML = icon('left', 18);
+  $('next').innerHTML = icon('right', 18);
+  const setPlay = (on) => { $('play').innerHTML = icon(on ? 'pause' : 'play', 20); $('play').setAttribute('aria-label', on ? 'Pause' : 'Play the year'); };
+  setPlay(false);
+
+  let idx = 0, W = 0, H = 0, geo;
+  const maxBal = Math.max(...days.map((d) => d.balance));
+  const mobile = () => innerWidth <= 860;
+
+  function layout() {
+    const v = $('view').getBoundingClientRect();
+    W = v.width; H = v.height;
+    const top = mobile() ? H * 0.52 : H * 0.5;
+    const bottom = mobile() ? H - 170 : H - 128;
+    const y = (b) => bottom - (b / (maxBal * 1.04)) * (bottom - top);
+    const pad = mobile() ? 12 : 20;
+    const x = (i) => pad + (i / (N - 1)) * (W - pad * 2);
+    geo = { x, y, top, bottom };
+    let d = `M0 ${H} L0 ${y(days[0].balance)}`;
+    days.forEach((p, i) => { d += ` L${x(i).toFixed(1)} ${y(p.balance).toFixed(1)}`; });
+    d += ` L${W} ${y(days[N - 1].balance).toFixed(1)}`;
+    const line = 'M' + days.map((p, i) => `${x(i).toFixed(1)} ${y(p.balance).toFixed(1)}`).join(' L');
+    const gi = days.indexOf(L.gipit);
+    const by = y(3000);
+    $('ridge').setAttribute('viewBox', `0 0 ${W} ${H}`);
+    $('ridge').innerHTML = `
+      <defs>
+        <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0f2f3f"/><stop offset=".35" stop-color="#0a2230"/><stop offset="1" stop-color="#061219"/>
+        </linearGradient>
+        <linearGradient id="rim" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#f4f1ea" stop-opacity=".55"/><stop offset=".55" stop-color="#f4f1ea" stop-opacity=".9"/><stop offset="1" stop-color="#f4a940" stop-opacity=".8"/>
+        </linearGradient>
+      </defs>
+      <path d="${d} L${W} ${H} Z" fill="url(#near)"/>
+      <path d="${line}" fill="none" stroke="url(#rim)" stroke-width="1.6" stroke-linejoin="round"/>
+      <line x1="0" x2="${W}" y1="${by}" y2="${by}" stroke="#f39a8b" stroke-opacity=".35" stroke-dasharray="2 6"/>
+      <text class="label-svg" x="${mobile() ? 16 : 48}" y="${by - 8}" fill="#f39a8b" fill-opacity=".8" font-size="12" font-weight="600" paint-order="stroke" stroke="#0a2230" stroke-width="4">Safety buffer ₱3,000</text>
+      <g transform="translate(${x(gi)} ${y(L.gipit.balance)})">
+        <circle r="5" fill="#e8604c" stroke="#071821" stroke-width="2"/>
+        <text class="label-svg" x="${mobile() ? 10 : 0}" y="${mobile() ? 22 : 30}" text-anchor="${mobile() ? 'start' : 'middle'}" fill="#f39a8b" font-size="12.5" font-weight="700">Gipit day · ${L.short(L.gipit.date)} · ${L.peso(L.gipit.balance)}</text>
+      </g>
+      <line id="scan" y1="0" y2="${H}" stroke="#f4a940" stroke-opacity=".5"/>
+      <circle id="dot" r="7" fill="#f4a940" stroke="#071821" stroke-width="3"/>`;
+    drawTrack();
+    update();
+  }
+
+  function drawTrack() {
+    const pct = (i) => (i / (N - 1)) * 100 + '%';
+    let ticks = '', months = '';
+    L.cutoffs.forEach((c) => { const i = days.findIndex((d) => +d.date === +c.start); if (i >= 0) ticks += `<span class="tick" style="left:${pct(i)}"></span>`; });
+    days.forEach((d, i) => {
+      if (d.date.getUTCDate() === 1) {
+        const jan = d.date.getUTCMonth() === 0;
+        const step = mobile() ? 2 : 1;
+        if (d.date.getUTCMonth() % step === 0 || jan)
+          months += `<span class="${jan ? 'yr' : ''}" style="left:${pct(i)}">${jan ? 'Jan ’' + String(d.date.getUTCFullYear()).slice(2) : L.fmt(d.date, { month: 'short' })}</span>`;
+      }
+    });
+    const gi = days.indexOf(L.gipit);
+    ticks += `<span class="mark" style="left:${pct(gi)};background:#e8604c" title="Gipit day"></span>`;
+    $('ticks').innerHTML = ticks;
+    $('months').innerHTML = months;
+  }
+
+  function cutoffOf(i) {
+    const t = days[i].date;
+    return L.cutoffs.find((c) => t >= c.start && t <= c.end) || L.cutoffs[0];
+  }
+
+  function amountHTML(e) {
+    return `<span class="a ${e.amount > 0 ? 'pos' : ''}">${L.peso(e.amount, { sign: true })}</span>`;
+  }
+  function sub(e) {
+    if (e.movedFrom) return `moved from ${L.fmt(e.movedFrom, { weekday: 'short' })} ${L.short(e.movedFrom)}`;
+    if (e.k) return `${e.kind === 'paluwagan' ? 'round' : ''} ${e.k} of ${e.n}`.trim();
+    if (e.fx) return e.fx;
+    if (e.from) return 'from ' + e.from;
+    return '';
+  }
+
+  function update() {
+    const p = days[idx];
+    const X = geo.x(idx), Y = geo.y(p.balance);
+    $('scan').setAttribute('x1', X); $('scan').setAttribute('x2', X);
+    $('dot').setAttribute('cx', X); $('dot').setAttribute('cy', Y);
+    $('when').innerHTML = idx === 0 ? `<b>Today</b> · ${L.fmt(p.date, { weekday: 'long', month: 'long', day: 'numeric' })}`
+      : `<b>${L.fmt(p.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</b> · ${idx} days ahead`;
+    const [w, c] = Math.abs(p.balance).toFixed(2).split('.');
+    $('balance').innerHTML = `<span class="cur">₱</span>${Number(w).toLocaleString('en-PH')}${c !== '00' ? `<span class="cents">.${c}</span>` : ''}`;
+    let s;
+    if (p.events.length) {
+      const parts = p.events.slice(0, 3).map((e) => `${e.name} <span class="${e.amount > 0 ? 'in' : 'out'}">${L.peso(e.amount, { sign: true })}</span>`);
+      s = parts.join(', ') + (p.events.length > 3 ? `, and ${p.events.length - 3} more.` : '.');
+      const moved = p.events.find((e) => e.movedFrom);
+      if (moved) s = `<strong>Sweldo comes early</strong> because ${L.fmt(moved.movedFrom, { weekday: 'long' })} ${L.short(moved.movedFrom)} isn’t a working day. ` + s;
+    } else {
+      const next = L.events.find((e) => e.date > p.date);
+      s = `A quiet day. Next up: <strong>${next.name}</strong> on ${L.short(next.date)}.`;
+    }
+    if (p === L.gipit) s = `<strong>Your lowest point this year.</strong> ` + s;
+    $('story').innerHTML = s;
+
+    const cut = cutoffOf(idx);
+    $('cut-title').textContent = `Cutoff · ${L.short(cut.start)} – ${L.short(cut.end)}`;
+    $('cut-flow').innerHTML = `Starts <b>${L.peso(cut.startBal)}</b> &nbsp;→&nbsp; ends <b>${L.peso(cut.endBal)}</b>`;
+    $('rows').innerHTML = cut.events.map((e) => {
+      const on = +e.date === +p.date, past = e.date < p.date;
+      return `<div class="r ${on ? 'on' : ''} ${past ? 'past' : ''}"><span class="d">${L.short(e.date)}</span><span class="n">${e.name}${sub(e) ? `<span class="s">${sub(e)}</span>` : ''}</span>${amountHTML(e)}</div>`;
+    }).join('');
+
+    const pct = (idx / (N - 1)) * 100;
+    $('fill').style.width = pct + '%';
+    $('handle').style.left = pct + '%';
+    $('handle').textContent = L.short(p.date);
+    $('track').setAttribute('aria-valuetext', `${L.fmt(p.date, { month: 'long', day: 'numeric', year: 'numeric' })}, ${L.peso(p.balance)}`);
+  }
+
+  function setFromX(clientX, el) {
+    const r = el.getBoundingClientRect();
+    idx = Math.max(0, Math.min(N - 1, Math.round(((clientX - r.left) / r.width) * (N - 1))));
+    update();
+  }
+  for (const el of [$('view'), $('track')]) {
+    el.addEventListener('pointerdown', (e) => { stop(); el.setPointerCapture(e.pointerId); setFromX(e.clientX, el); });
+    el.addEventListener('pointermove', (e) => { if (el.hasPointerCapture(e.pointerId) || (el === $('view') && e.pointerType === 'mouse' && !playing)) setFromX(e.clientX, el); });
+  }
+  $('track').addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, PageUp: 14, PageDown: -14 }[e.key];
+    if (step) { idx = Math.max(0, Math.min(N - 1, idx + step)); update(); e.preventDefault(); }
+  });
+  const jumpCut = (dir) => {
+    const ci = L.cutoffs.indexOf(cutoffOf(idx)) + dir;
+    const c = L.cutoffs[Math.max(0, Math.min(L.cutoffs.length - 1, ci))];
+    idx = days.findIndex((d) => +d.date === +c.start); update();
+  };
+  $('prev').onclick = () => jumpCut(-1);
+  $('next').onclick = () => jumpCut(1);
+
+  let playing = false, raf;
+  function stop() { playing = false; cancelAnimationFrame(raf); setPlay(false); }
+  $('play').onclick = () => {
+    if (playing) return stop();
+    if (idx >= N - 1) idx = 0;
+    playing = true; setPlay(true);
+    let last = performance.now();
+    const tick = (t) => {
+      if (!playing) return;
+      if (t - last > 28) { idx++; last = t; update(); }
+      if (idx >= N - 1) return stop();
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  };
+  addEventListener('resize', layout);
+  document.fonts.ready.then(layout);
+  layout();
+</script>
+</body>
+</html>

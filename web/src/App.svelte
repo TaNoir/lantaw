@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import Nav from './components/Nav.svelte';
+  import Range from './components/Range.svelte';
   import Timeline from './screens/Timeline.svelte';
   import Cutoffs from './screens/Cutoffs.svelte';
   import Plans from './screens/Plans.svelte';
@@ -48,6 +49,12 @@
 
 </script>
 
+<div class="sky" aria-hidden="true"></div>
+{#if app.showFirstRun || app.view !== 'timeline'}
+  <!-- Off the Timeline the range sits low and quiet behind the page. -->
+  <div class="horizon" aria-hidden="true"><Range /></div>
+{/if}
+
 {#if app.showFirstRun}
   <!-- First run has no navigation: it's the whole page until onboarding is done. -->
   <main class="solo" bind:this={mainEl} tabindex="-1">
@@ -61,7 +68,7 @@
 
   <div class="shell">
     <Nav route={app.view} />
-    <main bind:this={mainEl} tabindex="-1">
+    <main bind:this={mainEl} tabindex="-1" class:stage={app.view === 'timeline'}>
       {#if app.view === 'timeline'}
         <Timeline />
       {:else if app.view === 'cutoffs'}
@@ -85,10 +92,18 @@
   .shell {
     min-height: 100dvh;
   }
+  .horizon {
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 44dvh;
+    z-index: -1;
+    opacity: 0.5;
+    pointer-events: none;
+  }
   main {
     min-width: 0;
-    /* Room for the fixed bottom tab bar on phones. */
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    /* Room for the floating tab bar on phones. */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
   main:focus {
     outline: none;
@@ -100,12 +115,13 @@
     min-height: 100dvh;
   }
   @media (min-width: 1024px) {
-    .shell {
-      display: grid;
-      grid-template-columns: 232px minmax(0, 1fr);
-    }
     main {
       padding-bottom: 0;
+    }
+    /* The Timeline is the full view; the other screens sit in a centred column. */
+    main:not(.stage) {
+      max-width: 1240px;
+      margin-inline: auto;
     }
   }
 

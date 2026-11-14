@@ -137,7 +137,7 @@
         onkeydown={onKey}
       >
         <header class="bar">
-          <h2 class="kicker" aria-live="polite">
+          <h2 class="title" aria-live="polite">
             {isCurrent ? 'This cutoff' : 'Cutoff'} · {formatDayRange(cutoff.payday, cutoff.end)}
           </h2>
           <div class="steps">
@@ -151,11 +151,11 @@
         </header>
 
         <section class="hero" aria-label="Sweldo">
-          <p class="kicker">{sweldoEvents.length > 0 ? 'Sweldo' : 'Payday'} · {fmtDay(cutoff.payday)}</p>
           {#if sweldoEvents.length > 0}
             <p class="big">{formatPeso(sweldo)}</p>
+            <p class="hero-sub">Sweldo on {fmtDay(cutoff.payday)}</p>
           {:else}
-            <p class="big none">No sweldo in this cutoff</p>
+            <p class="big none">No sweldo lands in this cutoff, which starts {fmtDay(cutoff.payday)}</p>
           {/if}
           {#if moved}<p class="moved">{moved}</p>{/if}
           <p class="covers">
@@ -204,7 +204,7 @@
 
       {#if next}
         <button type="button" class="next" onclick={() => step(1)}>
-          <span class="kicker">Next · Sweldo {fmtDay(next.payday)}</span>
+          <span class="next-label">Next · Sweldo {fmtDay(next.payday)}</span>
           <span class="next-line">
             {formatPeso(next.incomeCentavos)} in →
             <strong class:low={next.leftCentavos < buffer}>{formatPeso(next.leftCentavos)}</strong> left
@@ -216,11 +216,18 @@
 </ScreenGate>
 
 <style>
-  .kicker {
+  .title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+  }
+  .next-label,
+  .hero-sub {
+    display: block;
     margin: 0;
     font-size: 0.875rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    font-weight: 600;
     color: var(--muted);
   }
   .pos {
@@ -234,6 +241,7 @@
     display: grid;
     gap: 14px;
     max-width: 44rem;
+    margin-inline: auto;
     padding: 12px 16px 24px;
   }
   @media (min-width: 1024px) {
@@ -262,14 +270,14 @@
     fill: var(--mango);
     fill-opacity: 0.2;
   }
+  /* The same ridge as the Timeline, small: land, rim, and a mango band for this cutoff. */
   .area {
-    fill: var(--teal);
-    fill-opacity: 0.16;
+    fill: var(--ridge-mid);
   }
   .line {
     fill: none;
-    stroke: var(--teal);
-    stroke-width: 2;
+    stroke: var(--rim-mid);
+    stroke-width: 1.5;
     stroke-linejoin: round;
   }
   .today {
@@ -292,7 +300,7 @@
 
   /* ---------- the cutoff card ---------- */
   .stage {
-    border-radius: 16px;
+    border-radius: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
     padding: 16px;
@@ -338,21 +346,21 @@
   }
 
   .hero {
-    margin-top: 12px;
-    padding: 16px;
-    border-radius: 14px;
-    background: var(--surface-2);
+    margin-top: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
   }
   .big {
     margin: 2px 0 0;
-    font-size: clamp(2.25rem, 9vw, 3rem);
-    font-weight: 800;
-    letter-spacing: -0.035em;
+    font-size: clamp(2.75rem, 11vw, 3.75rem);
+    font-weight: 250;
+    letter-spacing: -0.04em;
     line-height: 1.05;
     font-variant-numeric: tabular-nums;
   }
   .big.none {
     font-size: 1.25rem;
+    font-weight: 700;
     letter-spacing: -0.01em;
     color: var(--muted);
   }
@@ -431,7 +439,7 @@
   }
   .whatif .name,
   .whatif .amt {
-    font-style: italic;
+    color: var(--muted);
   }
   .whatif .amt {
     color: var(--muted);

@@ -18,7 +18,7 @@ export default defineConfig({
         short_name: 'Lantaw',
         description: 'See your money months ahead.',
         theme_color: '#0E2A3A',
-        background_color: '#0B2230',
+        background_color: '#06121A',
         display: 'standalone',
         start_url: '/',
         scope: '/',

@@ -159,10 +159,10 @@
     overflow-wrap: anywhere;
   }
 
-  /* What-if: italic text and a dashed icon outline, never faded. */
+  /* What-if: muted text and a dashed icon outline, never faded. */
   .whatif .name,
   .whatif .detail {
-    font-style: italic;
+    color: var(--muted);
   }
   .whatif .ic {
     background: transparent;
